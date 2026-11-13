@@ -116,6 +116,31 @@ docker compose -f deploy/compose/docker-compose.yml down
 the database, recordings, Redis data and agent workspaces, use
 `make -C deploy/compose destroy DESTROY=yes`. `make -C deploy/compose help` lists both commands.
 
+## Desktop Flows process
+
+The Mac desktop configuration can run the existing Flows API and worker in
+one process. It keeps the service name `flows-api`, the API port, the Postgres
+tables, and all current callers unchanged. It also enables the Agent and CRM
+Flows doors for the desktop product.
+
+First run the read-only proof against the live legacy API:
+
+```bash
+docker compose -p vexa-v012 --env-file deploy/compose/.env \
+  -f deploy/compose/docker-compose.yml \
+  -f deploy/compose/docker-compose.desktop.yml \
+  -f deploy/compose/docker-compose.desktop-flows-parity.yml \
+  --profile flows-parity up -d --build --no-deps flows-combined-shadow
+```
+
+Then run the `flows-parity` one-shot. It compares `/health` and the MCP tool
+manifest. The shadow process does not run a worker and cannot claim work.
+
+After a passing result, include `docker-compose.desktop-flows.yml` in the
+desktop start command. It replaces the API command with `flows_combined` and
+keeps `flows-worker` as the explicit `legacy-flows` rollback profile. Do not
+run both worker modes at the same time.
+
 Storage readiness checks the same endpoint as meeting-api (`S3_ENDPOINT`, else `MINIO_ENDPOINT`
 with `MINIO_SECURE`), creates the bucket if absent, and verifies a PUT/GET/DELETE probe outside
 `recordings/`. Any failure prevents meeting-api from starting. After a MinIO upgrade, old

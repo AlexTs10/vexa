@@ -1,0 +1,32 @@
+# Read-only proof for the desktop Flows switch. This file does not change the
+# running `flows-api` or `flows-worker` services.
+services:
+  flows-combined-shadow:
+    profiles: ["flows-parity"]
+    build:
+      context: ../..
+      dockerfile: core/flows/Dockerfile
+    image: vexaai/vexa-flows:${IMAGE_TAG:-dev}
+    extends:
+      file: docker-compose.yml
+      service: flows-api
+    command: ["python", "-m", "flows_combined", "--shadow"]
+
+  flows-parity:
+    profiles: ["flows-parity"]
+    build:
+      context: ../..
+      dockerfile: core/flows/Dockerfile
+    image: vexaai/vexa-flows:${IMAGE_TAG:-dev}
+    extends:
+      file: docker-compose.yml
+      service: flows-api
+    command: ["python", "-m", "flows_parity"]
+    environment:
+      - VEXA_FLOWS_LEGACY_URL=http://flows-api:8200
+      - VEXA_FLOWS_SHADOW_URL=http://flows-combined-shadow:8200
+    depends_on:
+      flows-api:
+        condition: service_healthy
+      flows-combined-shadow:
+        condition: service_started

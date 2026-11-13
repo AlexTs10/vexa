@@ -1,0 +1,23 @@
+# Desktop Flows switch. Use this only after docker-compose.desktop-flows-parity.yml
+# reports a passing comparison against the live legacy API.
+services:
+  # One process owns the unchanged API and the unchanged worker. Keeping the
+  # service name keeps all current internal URLs and product features working.
+  flows-api:
+    command: ["python", "-m", "flows_combined"]
+    environment:
+      # The desktop product always includes agents and CRM. Server deployments
+      # may still remove either domain in their own Compose configuration.
+      - VEXA_FLOWS_AGENT_API_URL=http://gateway:8002/agent
+      - VEXA_FLOWS_CRM_API_URL=http://gateway:8002/crm
+      - VEXA_FLOWS_SENSORS_BROKER_URL=${VEXA_FLOWS_SENSORS_BROKER_URL-http://credential-broker:8100}
+      - VEXA_FLOWS_SENSORS_KEY_FILE=/run/vexa-connections/sensors/key
+    volumes:
+      - connections-sensors-key:/run/vexa-connections/sensors:ro
+      - subject-ticket-mail-key:/run/vexa-subject-ticket:ro
+    networks: [vexa, connections]
+
+  # A second worker would claim the same work. Keep it as an explicit rollback
+  # profile and leave it out of normal desktop startup.
+  flows-worker:
+    profiles: ["legacy-flows"]
