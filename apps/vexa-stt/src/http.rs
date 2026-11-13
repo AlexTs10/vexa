@@ -107,6 +107,17 @@ impl Response {
         Self::json(status, format!("{{\"detail\":{}}}", crate::json::quote(detail)))
     }
 
+    /// FastAPI's validation answer for a missing form field.
+    pub fn missing_field(field: &str) -> Self {
+        Self::json(
+            422,
+            format!(
+                "{{\"detail\":[{{\"type\":\"missing\",\"loc\":[\"body\",{}],\"msg\":\"Field required\",\"input\":null}}]}}",
+                crate::json::quote(field)
+            ),
+        )
+    }
+
     pub fn with_header(mut self, name: &str, value: &str) -> Self {
         self.headers.push((name.to_owned(), value.to_owned()));
         self
@@ -120,6 +131,7 @@ impl Response {
             404 => "Not Found",
             405 => "Method Not Allowed",
             413 => "Payload Too Large",
+            422 => "Unprocessable Entity",
             500 => "Internal Server Error",
             503 => "Service Unavailable",
             504 => "Gateway Timeout",

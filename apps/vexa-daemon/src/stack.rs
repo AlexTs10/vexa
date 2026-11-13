@@ -329,7 +329,46 @@ impl Stack {
         spec
     }
 
-    /// Start the infrastructure group: database, bus and object storage.
+    /// The native transcription service (`apps/vexa-stt`): the Compose
+    /// `transcription` contract on whisper.cpp with Metal.
+    pub fn stt(&self) -> Result<Spec, String> {
+        let binary = match std::env::var("VEXA_STT_BIN") {
+            Ok(path) => PathBuf::from(path),
+            Err(_) => {
+                let beside = std::env::current_exe()
+                    .ok()
+                    .and_then(|exe| exe.parent().map(|dir| dir.join("vexa-stt")));
+                [
+                    beside,
+                    Some(self.source.join("apps/vexa-stt/target/release/vexa-stt")),
+                    Some(self.source.join("apps/vexa-stt/target/debug/vexa-stt")),
+                ]
+                .into_iter()
+                .flatten()
+                .find(|path| path.is_file())
+                .ok_or("cannot find vexa-stt; build apps/vexa-stt or set VEXA_STT_BIN")?
+            }
+        };
+        let port = self.env.port("VEXA_STT_PORT");
+        let mut spec = self
+            .base(Spec::new("stt", binary, Ready::Http(port, "/health".to_owned())))
+            .env("VEXA_STT_PORT", port.to_string())
+            .env("TRANSCRIPTION_SERVICE_TOKEN", self.env.get("TRANSCRIPTION_SERVICE_TOKEN"))
+            .env("VEXA_STT_MODEL_DIR", self.layout.data().join("models").display().to_string())
+            .env("VEXA_STT_ENGINE_LOG", self.layout.logs().join("whisper-server.log").display().to_string())
+            // The first start downloads the model (about 265 MB).
+            .timeout(Duration::from_secs(900));
+        for key in ["VEXA_STT_MODEL", "VEXA_STT_IDLE_SEC", "VEXA_STT_THREADS", "VEXA_WHISPER_SERVER", "MAX_ACTIVE_REQUESTS"] {
+            let value = self.env.get(key);
+            if !value.is_empty() {
+                spec = spec.env(key, value);
+            }
+        }
+        Ok(spec)
+    }
+
+    /// Start the infrastructure group: database, bus, object storage and
+    /// transcription.
     pub fn start_infra(&self, supervisor: &mut Supervisor) -> Result<(), String> {
         self.ensure_pg_cluster()?;
         supervisor.start(self.postgres())?;
@@ -337,6 +376,10 @@ impl Stack {
         supervisor.start(self.redis()?)?;
         supervisor.start(self.storage()?)?;
         supervisor.start(self.storage_init())?;
+        // An operator who sets TRANSCRIPTION_SERVICE_URL uses another service.
+        if self.env.get("TRANSCRIPTION_SERVICE_URL").is_empty() {
+            supervisor.start(self.stt()?)?;
+        }
         Ok(())
     }
 }

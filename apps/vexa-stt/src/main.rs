@@ -127,10 +127,12 @@ impl Service {
                 .map(|p| String::from_utf8_lossy(&p.data).trim().to_owned())
         };
         let Some(file) = parts.iter().find(|p| p.name == "file") else {
-            return Response::detail(400, "Field 'file' is required");
+            return Response::missing_field("file");
         };
-        if field("model").unwrap_or_default().is_empty() {
-            return Response::detail(400, "Model parameter is required");
+        match field("model") {
+            None => return Response::missing_field("model"),
+            Some(model) if model.is_empty() => return Response::detail(400, "Model parameter is required"),
+            Some(_) => {}
         }
         let temperature: f64 = field("temperature").and_then(|t| t.parse().ok()).unwrap_or(0.0);
         let language = field("language").filter(|l| !l.is_empty());

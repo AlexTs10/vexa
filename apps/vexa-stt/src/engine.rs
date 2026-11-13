@@ -140,6 +140,8 @@ impl Engine {
             .args(["-l", "auto", "-t", &c.threads.to_string()])
             // The Python service's decoding settings (core/meetings/services/transcription).
             .args(["-bs", "5", "-bo", "5", "-nf", "-nth", "0.6", "-lpt", "-1.0"])
+            // Segment on word boundaries, as faster-whisper does ("o'clock", not "o'" + "clock").
+            .arg("-sow")
             .stdin(Stdio::null());
         if c.vad_file().is_file() {
             command
