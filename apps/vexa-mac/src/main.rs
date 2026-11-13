@@ -2,20 +2,14 @@ use std::{
     env,
     io::{Read, Write},
     net::{SocketAddr, TcpStream, ToSocketAddrs},
-    process::{Command, ExitCode},
-    time::Duration,
+    path::PathBuf,
+    process::{Command, ExitCode, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 
+const DEFAULT_DAEMON_URL: &str = "http://127.0.0.1:13001/";
 const DEFAULT_TERMINAL_URL: &str = "http://127.0.0.1:13000/";
-const DEFAULT_GATEWAY_URL: &str = "http://127.0.0.1:18056/health";
-const DEFAULT_SHELL_URL: &str = "http://127.0.0.1:13001/";
-const SHELL_HTML: &str = include_str!("../static/index.html");
-const SHELL_CSS: &str = include_str!("../static/app.css");
-
-struct Service {
-    name: &'static str,
-    url: String,
-}
 
 fn main() -> ExitCode {
     match run() {
@@ -28,10 +22,14 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), String> {
-    let command = env::args().nth(1).unwrap_or_else(|| "open".to_owned());
-    match command.as_str() {
-        "open" => open_terminal(),
-        "serve" => serve_static_shell(),
+    match env::args()
+        .nth(1)
+        .unwrap_or_else(|| "open".to_owned())
+        .as_str()
+    {
+        "open" => open_shell(),
+        "start" => ensure_daemon(),
+        "daemon" | "serve" => run_daemon_foreground(),
         "status" => show_status(),
         "help" | "--help" | "-h" => {
             print_help();
@@ -41,144 +39,11 @@ fn run() -> Result<(), String> {
     }
 }
 
-fn services() -> [Service; 2] {
-    [
-        Service {
-            name: "terminal",
-            url: env::var("VEXA_TERMINAL_URL").unwrap_or_else(|_| DEFAULT_TERMINAL_URL.to_owned()),
-        },
-        Service {
-            name: "gateway",
-            url: env::var("VEXA_GATEWAY_URL").unwrap_or_else(|_| DEFAULT_GATEWAY_URL.to_owned()),
-        },
-    ]
+fn daemon_url() -> String {
+    env::var("VEXA_DAEMON_URL").unwrap_or_else(|_| DEFAULT_DAEMON_URL.to_owned())
 }
-
-fn open_terminal() -> Result<(), String> {
-    let terminal = services()
-        .into_iter()
-        .next()
-        .expect("terminal service exists");
-    if !is_reachable(&terminal.url) {
-        return Err(format!(
-            "Vexa is not running at {}. Start the local stack first, then run `vexa-mac open`.",
-            terminal.url
-        ));
-    }
-
-    Command::new("open")
-        .arg(&terminal.url)
-        .status()
-        .map_err(|error| format!("cannot open Vexa: {error}"))?
-        .success()
-        .then_some(())
-        .ok_or_else(|| "macOS could not open the Vexa URL".to_owned())
-}
-
-fn show_status() -> Result<(), String> {
-    let services = services();
-    let mut all_reachable = true;
-    for service in &services {
-        let reachable = is_reachable(&service.url);
-        let state = if reachable { "ready" } else { "not running" };
-        println!("{}: {state} ({})", service.name, service.url);
-        all_reachable &= reachable;
-    }
-
-    if all_reachable {
-        Ok(())
-    } else {
-        Err("one or more local Vexa services are not running".to_owned())
-    }
-}
-
-fn serve_static_shell() -> Result<(), String> {
-    let shell_url = env::var("VEXA_MAC_SHELL_URL").unwrap_or_else(|_| DEFAULT_SHELL_URL.to_owned());
-    let address = socket_address(&shell_url)
-        .ok_or_else(|| format!("invalid VEXA_MAC_SHELL_URL: {shell_url}"))?;
-    let listener = std::net::TcpListener::bind(address)
-        .map_err(|error| format!("cannot start the Vexa Mac shell at {shell_url}: {error}"))?;
-
-    println!("Vexa Mac shell: {shell_url}");
-    println!("Press Control-C to stop it.");
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                if let Err(error) = handle_shell_request(stream) {
-                    eprintln!("vexa-mac: shell request failed: {error}");
-                }
-            }
-            Err(error) => eprintln!("vexa-mac: shell connection failed: {error}"),
-        }
-    }
-    Ok(())
-}
-
-fn handle_shell_request(mut stream: TcpStream) -> Result<(), String> {
-    let mut request = [0_u8; 2048];
-    let count = stream
-        .read(&mut request)
-        .map_err(|error| format!("cannot read shell request: {error}"))?;
-    let first_line = std::str::from_utf8(&request[..count])
-        .map_err(|_| "shell request is not UTF-8".to_owned())?
-        .lines()
-        .next()
-        .unwrap_or_default();
-    let path = first_line.split_whitespace().nth(1).unwrap_or("/");
-
-    let response = match path {
-        "/" => {
-            let terminal_url = services()
-                .into_iter()
-                .next()
-                .expect("terminal service exists")
-                .url;
-            let html = SHELL_HTML.replace("__VEXA_TERMINAL_URL__", &terminal_url);
-            http_response("200 OK", "text/html; charset=utf-8", html.as_bytes())
-        }
-        "/app.css" => http_response("200 OK", "text/css; charset=utf-8", SHELL_CSS.as_bytes()),
-        "/status" => {
-            let body = status_json();
-            http_response("200 OK", "application/json; charset=utf-8", body.as_bytes())
-        }
-        _ => http_response("404 Not Found", "text/plain; charset=utf-8", b"Not found\n"),
-    };
-    stream
-        .write_all(&response)
-        .map_err(|error| format!("cannot write shell response: {error}"))?;
-    Ok(())
-}
-
-fn status_json() -> String {
-    let entries = services()
-        .iter()
-        .map(|service| {
-            format!(
-                r#"{{"name":"{}","url":"{}","ready":{}}}"#,
-                service.name,
-                service.url,
-                is_reachable(&service.url)
-            )
-        })
-        .collect::<Vec<_>>();
-    format!(r#"{{"services":[{}]}}"#, entries.join(","))
-}
-
-fn http_response(status: &str, content_type: &str, body: &[u8]) -> Vec<u8> {
-    let mut response = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
-        body.len()
-    )
-    .into_bytes();
-    response.extend_from_slice(body);
-    response
-}
-
-fn is_reachable(url: &str) -> bool {
-    let Some(address) = socket_address(url) else {
-        return false;
-    };
-    TcpStream::connect_timeout(&address, Duration::from_secs(1)).is_ok()
+fn terminal_url() -> String {
+    env::var("VEXA_TERMINAL_URL").unwrap_or_else(|_| DEFAULT_TERMINAL_URL.to_owned())
 }
 
 fn socket_address(url: &str) -> Option<SocketAddr> {
@@ -186,47 +51,142 @@ fn socket_address(url: &str) -> Option<SocketAddr> {
     let authority = without_scheme.split('/').next()?;
     let host_port = if authority.contains(':') {
         authority.to_owned()
-    } else if url.starts_with("https://") {
-        format!("{authority}:443")
     } else {
         format!("{authority}:80")
     };
     host_port.to_socket_addrs().ok()?.next()
 }
 
-fn print_help() {
+fn daemon_is_ready() -> bool {
+    let Some(address) = socket_address(&daemon_url()) else {
+        return false;
+    };
+    let Ok(mut stream) = TcpStream::connect_timeout(&address, Duration::from_millis(350)) else {
+        return false;
+    };
+    if stream
+        .write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+        .is_err()
+    {
+        return false;
+    }
+    let mut response = String::new();
+    stream.read_to_string(&mut response).is_ok()
+        && response.contains("200 OK")
+        && response.contains("vexa-daemon")
+}
+
+fn daemon_binary() -> Result<PathBuf, String> {
+    if let Ok(path) = env::var("VEXA_DAEMON_BIN") {
+        return Ok(PathBuf::from(path));
+    }
+    let executable =
+        env::current_exe().map_err(|error| format!("cannot find Vexa app path: {error}"))?;
+    let parent = executable
+        .parent()
+        .ok_or_else(|| "cannot find the Vexa app folder".to_owned())?;
+    let mut candidates = vec![parent.join("vexa-daemon")];
+    if let Ok(cwd) = env::current_dir() {
+        candidates.push(cwd.join("apps/vexa-daemon/target/debug/vexa-daemon"));
+        candidates.push(cwd.join("apps/vexa-daemon/target/release/vexa-daemon"));
+    }
+    candidates
+        .into_iter()
+        .find(|path| path.is_file())
+        .ok_or_else(|| "cannot find vexa-daemon; build it first or set VEXA_DAEMON_BIN".to_owned())
+}
+
+fn ensure_daemon() -> Result<(), String> {
+    if daemon_is_ready() {
+        println!("Vexa daemon is ready at {}", daemon_url());
+        return Ok(());
+    }
+    let binary = daemon_binary()?;
+    Command::new(binary)
+        .arg("serve")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|error| format!("cannot start Vexa daemon: {error}"))?;
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while Instant::now() < deadline {
+        if daemon_is_ready() {
+            println!("Vexa daemon started at {}", daemon_url());
+            return Ok(());
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    Err("Vexa daemon did not become ready; run `vexa-mac daemon` to see its error".to_owned())
+}
+
+fn run_daemon_foreground() -> Result<(), String> {
+    let status = Command::new(daemon_binary()?)
+        .arg("serve")
+        .status()
+        .map_err(|error| format!("cannot run Vexa daemon: {error}"))?;
+    status
+        .success()
+        .then_some(())
+        .ok_or_else(|| "Vexa daemon stopped with an error".to_owned())
+}
+
+fn open_shell() -> Result<(), String> {
+    ensure_daemon()?;
+    let terminal = terminal_url();
+    if !is_reachable(&terminal) {
+        return Err(format!("Vexa terminal is not running at {terminal}. Start the local stack, then run `vexa-mac open`."));
+    }
+    Command::new("open")
+        .arg(daemon_url())
+        .status()
+        .map_err(|error| format!("cannot open Vexa: {error}"))?
+        .success()
+        .then_some(())
+        .ok_or_else(|| "macOS could not open the Vexa app".to_owned())
+}
+
+fn show_status() -> Result<(), String> {
+    if !daemon_is_ready() {
+        return Err(format!(
+            "Vexa daemon is not running at {}; run `vexa-mac start`",
+            daemon_url()
+        ));
+    }
+    println!("daemon: ready ({})", daemon_url());
     println!(
-        "vexa-mac\n\nUSAGE:\n  vexa-mac [open|serve|status|help]\n\nCOMMANDS:\n  open    Open the running local Vexa terminal in the default browser.\n  serve   Serve the static local Mac shell.\n  status  Show terminal and gateway reachability.\n  help    Show this help.\n\nENVIRONMENT:\n  VEXA_TERMINAL_URL  Default: {DEFAULT_TERMINAL_URL}\n  VEXA_GATEWAY_URL   Default: {DEFAULT_GATEWAY_URL}\n  VEXA_MAC_SHELL_URL Default: {DEFAULT_SHELL_URL}"
+        "terminal: {} ({})",
+        if is_reachable(&terminal_url()) {
+            "ready"
+        } else {
+            "not running"
+        },
+        terminal_url()
     );
+    Ok(())
+}
+
+fn is_reachable(url: &str) -> bool {
+    socket_address(url)
+        .is_some_and(|address| TcpStream::connect_timeout(&address, Duration::from_secs(1)).is_ok())
+}
+
+fn print_help() {
+    println!("vexa-mac\n\nUSAGE:\n  vexa-mac [open|start|status|daemon|help]\n\nCOMMANDS:\n  open    Start the native daemon and open the local Mac shell.\n  start   Start the native daemon without opening a browser.\n  status  Show daemon and terminal readiness.\n  daemon  Run the native daemon in the foreground.\n  serve   Alias for daemon.\n  help    Show this help.\n\nENVIRONMENT:\n  VEXA_DAEMON_BIN  Path to vexa-daemon during development.\n  VEXA_DAEMON_URL  Default: {DEFAULT_DAEMON_URL}\n  VEXA_TERMINAL_URL Default: {DEFAULT_TERMINAL_URL}");
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{http_response, socket_address, SHELL_CSS, SHELL_HTML};
-
+    use super::socket_address;
     #[test]
-    fn parses_local_http_address() {
+    fn parses_local_daemon_address() {
         assert_eq!(
-            socket_address("http://127.0.0.1:13000/"),
-            Some("127.0.0.1:13000".parse().unwrap())
+            socket_address("http://127.0.0.1:13001/"),
+            Some("127.0.0.1:13001".parse().unwrap())
         );
     }
-
     #[test]
-    fn rejects_urls_without_a_scheme() {
-        assert_eq!(socket_address("127.0.0.1:13000"), None);
-    }
-
-    #[test]
-    fn creates_a_status_response() {
-        let response = String::from_utf8(http_response("200 OK", "text/plain", b"ok")).unwrap();
-        assert!(response.starts_with("HTTP/1.1 200 OK"));
-        assert!(response.ends_with("ok"));
-    }
-
-    #[test]
-    fn includes_the_static_shell_assets() {
-        assert!(SHELL_HTML.contains("Vexa Mac"));
-        assert!(SHELL_CSS.contains("--surface"));
+    fn rejects_a_url_without_a_scheme() {
+        assert_eq!(socket_address("127.0.0.1:13001"), None);
     }
 }

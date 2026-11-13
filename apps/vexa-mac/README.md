@@ -2,14 +2,15 @@
 
 `vexa-mac` is the first native macOS shell for a local Vexa deployment.
 
-It does not replace the current Vexa UI. It checks the local terminal and
-gateway, then opens the current terminal in the default browser. This keeps
-all current features while the native daemon work is in progress.
+It starts the native Vexa daemon, then opens the local Mac shell. The shell
+keeps the current Vexa terminal unchanged. This keeps all current features
+while native routes replace it in small steps.
 
 ## Run during development
 
 ```sh
 cargo run --manifest-path apps/vexa-mac/Cargo.toml -- status
+cargo run --manifest-path apps/vexa-mac/Cargo.toml -- start
 cargo run --manifest-path apps/vexa-mac/Cargo.toml -- open
 ```
 
@@ -25,19 +26,19 @@ bash apps/vexa-mac/scripts/build-macos-app.sh
 open apps/vexa-mac/target/Vexa.app
 ```
 
-The bundle contains a native macOS launcher. It opens Vexa only after the
-local terminal is ready. The next migration step will make this bundle start
-the native Vexa daemon as well.
+The bundle contains the Mac launcher and `vexa-daemon`. It starts the daemon
+before it opens the local shell. It opens the current Vexa terminal only after
+the terminal is ready.
 
-## Run the static Mac shell
+## Run the daemon in the foreground
 
 ```sh
-cargo run --manifest-path apps/vexa-mac/Cargo.toml -- serve
+cargo run --manifest-path apps/vexa-mac/Cargo.toml -- daemon
 ```
 
-Open `http://127.0.0.1:13001/`. The shell shows local service status and has a
-link to the unchanged Vexa terminal. Its route replacement rules are in
-[MIGRATION.md](MIGRATION.md).
+Open `http://127.0.0.1:13001/`. The daemon now owns the static Mac shell and
+the local health-status routes. The shell has a link to the unchanged Vexa
+terminal. Its route replacement rules are in [MIGRATION.md](MIGRATION.md).
 
 ## Scope
 

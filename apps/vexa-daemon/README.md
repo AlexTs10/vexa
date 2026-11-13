@@ -1,8 +1,8 @@
 # Vexa daemon
 
-`vexa-daemon` is the future local control plane for the Mac app. It has no
-production routing role yet. The current Vexa services keep their existing
-behavior.
+`vexa-daemon` is the local control plane for the Mac app. It now owns the Mac
+shell and its local health-status routes. The current Vexa services keep their
+existing behavior.
 
 It owns the future local folders below `~/Library/Application Support/Vexa`:
 
@@ -25,10 +25,12 @@ cargo run --manifest-path apps/vexa-daemon/Cargo.toml -- serve
 
 - `GET /health`
 - `GET /status`
+- `GET /` (Mac shell)
+- `GET /app.css`
 
-Later changes will move the runtime, gateway, and MCP entry points behind this
-daemon one at a time. This order keeps existing features working during the
-migration.
+The moved shell group has parity checks for its HTTP response, routes, and
+assets. Later changes will move one Vexa service group at a time behind this
+daemon. This order keeps existing features working during the migration.
 
 `store-init` creates an independent local SQLite database at
 `~/Library/Application Support/Vexa/data/vexa.sqlite3`. It currently owns only

@@ -1,9 +1,14 @@
 use std::env;
 use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
+
+const DEFAULT_DAEMON_URL: &str = "http://127.0.0.1:13001/";
+const DEFAULT_TERMINAL_URL: &str = "http://127.0.0.1:13000/";
+const SHELL_HTML: &str = include_str!("../../vexa-mac/static/index.html");
+const SHELL_CSS: &str = include_str!("../../vexa-mac/static/app.css");
 
 struct Service {
     name: &'static str,
@@ -48,9 +53,31 @@ fn app_support_dir() -> PathBuf {
         .join("Vexa")
 }
 
+fn daemon_url() -> String {
+    env::var("VEXA_DAEMON_URL").unwrap_or_else(|_| DEFAULT_DAEMON_URL.to_owned())
+}
+
+fn terminal_url() -> String {
+    env::var("VEXA_TERMINAL_URL").unwrap_or_else(|_| DEFAULT_TERMINAL_URL.to_owned())
+}
+
+fn socket_address(url: &str) -> Option<SocketAddr> {
+    let without_scheme = url.split_once("://")?.1;
+    let authority = without_scheme.split('/').next()?;
+    let host_port = if authority.contains(':') {
+        authority.to_owned()
+    } else {
+        format!("{authority}:80")
+    };
+    host_port.to_socket_addrs().ok()?.next()
+}
+
 fn is_open(port: u16) -> bool {
-    let address = SocketAddr::from(([127, 0, 0, 1], port));
-    TcpStream::connect_timeout(&address, Duration::from_millis(350)).is_ok()
+    TcpStream::connect_timeout(
+        &SocketAddr::from(([127, 0, 0, 1], port)),
+        Duration::from_millis(350),
+    )
+    .is_ok()
 }
 
 fn status_json() -> String {
@@ -91,20 +118,10 @@ fn init_store() -> Result<(), String> {
     let schema = r#"
         PRAGMA journal_mode = WAL;
         PRAGMA foreign_keys = ON;
-        CREATE TABLE IF NOT EXISTS local_settings (
-          key TEXT PRIMARY KEY NOT NULL,
-          value TEXT NOT NULL,
-          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE TABLE IF NOT EXISTS migration_state (
-          name TEXT PRIMARY KEY NOT NULL,
-          version INTEGER NOT NULL,
-          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        INSERT INTO migration_state (name, version)
-          VALUES ('local-store', 1)
-          ON CONFLICT(name) DO UPDATE SET version = excluded.version,
-            updated_at = CURRENT_TIMESTAMP;
+        CREATE TABLE IF NOT EXISTS local_settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE IF NOT EXISTS migration_state (name TEXT PRIMARY KEY NOT NULL, version INTEGER NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+        INSERT INTO migration_state (name, version) VALUES ('local-store', 1)
+          ON CONFLICT(name) DO UPDATE SET version = excluded.version, updated_at = CURRENT_TIMESTAMP;
     "#;
     let output = Command::new("/usr/bin/sqlite3")
         .arg(store_path())
@@ -121,33 +138,70 @@ fn init_store() -> Result<(), String> {
     Ok(())
 }
 
-fn print_status() {
-    println!("{}", status_json());
+fn http_response(status: &str, content_type: &str, body: &[u8]) -> Vec<u8> {
+    let mut response = format!("HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n", body.len()).into_bytes();
+    response.extend_from_slice(body);
+    response
+}
+
+fn response_for_path(path: &str) -> Vec<u8> {
+    match path {
+        "/" => {
+            let html = SHELL_HTML.replace("__VEXA_TERMINAL_URL__", &terminal_url());
+            http_response("200 OK", "text/html; charset=utf-8", html.as_bytes())
+        }
+        "/app.css" => http_response("200 OK", "text/css; charset=utf-8", SHELL_CSS.as_bytes()),
+        "/health" => http_response(
+            "200 OK",
+            "application/json; charset=utf-8",
+            br#"{"status":"ok","service":"vexa-daemon"}"#,
+        ),
+        "/status" => {
+            let body = status_json();
+            http_response("200 OK", "application/json; charset=utf-8", body.as_bytes())
+        }
+        _ => http_response(
+            "404 Not Found",
+            "application/json; charset=utf-8",
+            br#"{"error":"not found"}"#,
+        ),
+    }
+}
+
+fn handle_request(mut stream: TcpStream) -> Result<(), String> {
+    let mut request = [0_u8; 2048];
+    let length = stream
+        .read(&mut request)
+        .map_err(|error| error.to_string())?;
+    let request =
+        std::str::from_utf8(&request[..length]).map_err(|_| "request is not UTF-8".to_owned())?;
+    let path = request
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .unwrap_or("/");
+    let response = response_for_path(path);
+    stream
+        .write_all(&response)
+        .map_err(|error| error.to_string())
 }
 
 fn serve() -> Result<(), String> {
-    let listener = TcpListener::bind("127.0.0.1:13001").map_err(|error| error.to_string())?;
-    println!("Vexa daemon is listening on http://127.0.0.1:13001");
+    init_store()?;
+    let url = daemon_url();
+    let address = socket_address(&url).ok_or_else(|| format!("invalid VEXA_DAEMON_URL: {url}"))?;
+    let listener = TcpListener::bind(address)
+        .map_err(|error| format!("cannot start Vexa daemon at {url}: {error}"))?;
+    println!("Vexa daemon is listening on {url}");
     for stream in listener.incoming() {
-        let mut stream = stream.map_err(|error| error.to_string())?;
-        let mut request = [0_u8; 1024];
-        let length = stream.read(&mut request).unwrap_or(0);
-        let route = std::str::from_utf8(&request[..length]).unwrap_or("");
-        let (status, body) = if route.starts_with("GET /health ") {
-            (
-                "200 OK",
-                r#"{"status":"ok","service":"vexa-daemon"}"#.to_string(),
-            )
-        } else if route.starts_with("GET /status ") {
-            ("200 OK", status_json())
-        } else {
-            ("404 Not Found", r#"{"error":"not found"}"#.to_string())
-        };
-        let response = format!(
-            "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-            body.len()
-        );
-        let _ = stream.write_all(response.as_bytes());
+        match stream {
+            Ok(stream) => {
+                if let Err(error) = handle_request(stream) {
+                    eprintln!("vexa-daemon: request failed: {error}");
+                }
+            }
+            Err(error) => eprintln!("vexa-daemon: connection failed: {error}"),
+        }
     }
     Ok(())
 }
@@ -157,12 +211,11 @@ fn usage() {
 }
 
 fn main() {
-    let command = env::args().nth(1);
-    let result = match command.as_deref() {
+    let result = match env::args().nth(1).as_deref() {
         Some("init") => init(),
         Some("store-init") => init_store(),
         Some("status") => {
-            print_status();
+            println!("{}", status_json());
             Ok(())
         }
         Some("serve") => serve(),
@@ -174,5 +227,47 @@ fn main() {
     if let Err(error) = result {
         eprintln!("vexa-daemon: {error}");
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{http_response, response_for_path, socket_address, SHELL_CSS, SHELL_HTML};
+
+    #[test]
+    fn parses_local_daemon_address() {
+        assert_eq!(
+            socket_address("http://127.0.0.1:13001/"),
+            Some("127.0.0.1:13001".parse().unwrap())
+        );
+    }
+
+    #[test]
+    fn preserves_the_moved_shell_assets() {
+        assert!(SHELL_HTML.contains("Vexa Mac"));
+        assert!(SHELL_HTML.contains("/status"));
+        assert!(SHELL_CSS.contains("--surface"));
+    }
+
+    #[test]
+    fn produces_http_responses() {
+        let response = String::from_utf8(http_response("200 OK", "text/plain", b"ok")).unwrap();
+        assert!(response.starts_with("HTTP/1.1 200 OK"));
+        assert!(response.ends_with("ok"));
+    }
+
+    #[test]
+    fn keeps_the_shell_group_routes() {
+        let root = String::from_utf8(response_for_path("/")).unwrap();
+        let health = String::from_utf8(response_for_path("/health")).unwrap();
+        let status = String::from_utf8(response_for_path("/status")).unwrap();
+        let stylesheet = String::from_utf8(response_for_path("/app.css")).unwrap();
+
+        assert!(root.contains("HTTP/1.1 200 OK"));
+        assert!(root.contains("Open current Vexa"));
+        assert!(health.contains(r#""service":"vexa-daemon""#));
+        assert!(status.contains(r#""name":"terminal""#));
+        assert!(status.contains(r#""name":"gateway""#));
+        assert!(stylesheet.contains("text/css"));
     }
 }
