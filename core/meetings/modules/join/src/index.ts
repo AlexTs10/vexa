@@ -188,6 +188,7 @@ export { joinGoogleMeeting, waitForGoogleMeetingAdmission, checkForGoogleAdmissi
 // (AuthSessionError, an AdmissionError subclass) as the permanent `auth_session_missing` — never
 // collapsed into a transient (retried) `join_failure` (G1).
 export { AdmissionError } from "./shared/admission";
+export { SCREENSHOT_DIR, screenshotPath } from "./shared/screenshots";
 // Meet refusing the knock itself ("You can't join this video call") — a typed `denial` whose message
 // starts with GOOGLE_JOIN_REFUSED, after GOOGLE_JOIN_MAX_KNOCKS knocks (googlemeet/refusal.ts).
 export { GoogleJoinRefusedError, GOOGLE_JOIN_REFUSED, GOOGLE_JOIN_MAX_KNOCKS, GOOGLE_JOIN_REKNOCK_BACKOFF_MS, googleKnockConfig } from "./googlemeet/refusal";

@@ -108,7 +108,32 @@ pub const EDGE_ENV: PyApp = PyApp {
     workdir: "",
 };
 
-pub const ALL: [&PyApp; 9] = [&ADMIN, &RUNTIME, &MEETING, &AGENT, &GATEWAY, &MCP, &BROKER, &CRM, &FLOWS];
+/// The agent worker the runtime spawns per dispatch (core/agent/worker/Dockerfile).
+pub const WORKER: PyApp = PyApp {
+    name: "agent-worker",
+    context: ".",
+    dockerfile: "core/agent/worker/Dockerfile",
+    project: "core/agent",
+    sync: &["--no-default-groups"],
+    pythonpath: "app",
+    workdir: "app",
+};
+
+pub const ALL: [&PyApp; 10] = [&ADMIN, &RUNTIME, &MEETING, &AGENT, &GATEWAY, &MCP, &BROKER, &CRM, &FLOWS, &WORKER];
+
+/// The npm packages the worker image installs globally (`npm install -g ...`).
+pub fn worker_cli_packages(dockerfile: &str) -> Vec<String> {
+    dockerfile
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("npm install -g "))
+        .map(|rest| {
+            rest.split_whitespace()
+                .take_while(|word| *word != "&&" && *word != "\\")
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
+}
 
 /// Paths of the key and state volumes on the host.
 pub struct Keys {
@@ -231,7 +256,35 @@ impl Stack {
         for app in ALL {
             app.prepare(&self.source, &runtime, &self.tools.uv, &self.tools.path)?;
         }
-        Ok(())
+        self.ensure_worker_clis()
+    }
+
+    /// The agent worker's pinned CLIs (claude-code, codex) in runtime/node-tools.
+    fn ensure_worker_clis(&self) -> Result<(), String> {
+        let dockerfile = std::fs::read_to_string(self.source.join(WORKER.dockerfile)).map_err(|e| e.to_string())?;
+        let packages = worker_cli_packages(&dockerfile);
+        if packages.is_empty() {
+            return Err("cannot read the worker CLIs from core/agent/worker/Dockerfile".to_owned());
+        }
+        let prefix = self.layout.runtime().join("node-tools");
+        let stamp = prefix.join(".vexa-stamp");
+        let want = packages.join(" ");
+        if std::fs::read_to_string(&stamp).is_ok_and(|old| old == want) {
+            return Ok(());
+        }
+        std::fs::create_dir_all(&prefix).map_err(|e| e.to_string())?;
+        println!("vexa-daemon: installing worker CLIs: {want}");
+        let output = std::process::Command::new("npm")
+            .args(["install", "--no-save", "--no-audit", "--no-fund", "--prefix"])
+            .arg(&prefix)
+            .args(&packages)
+            .env("PATH", &self.tools.path)
+            .output()
+            .map_err(|e| format!("cannot run npm: {e}"))?;
+        if !output.status.success() {
+            return Err(format!("npm install failed: {}", String::from_utf8_lossy(&output.stderr).trim()));
+        }
+        std::fs::write(&stamp, want).map_err(|e| e.to_string())
     }
 
     /// The Compose key jobs. Each keeps an existing key.
@@ -366,6 +419,9 @@ impl Stack {
             .env("BOT_COMMAND", launchers.join("vexa-bot-launch").display().to_string())
             .env("AGENT_WORKER_COMMAND", launchers.join("vexa-agent-worker").display().to_string())
             .env("VEXA_WORKSPACE_MOUNT_TARGET", workspaces.display().to_string())
+            // Host plumbing the process backend passes to each bot (workload_env.PROCESS_PLUMBING_ENV).
+            .env("PLAYWRIGHT_BROWSERS_PATH", runtime_dir.join("ms-playwright").display().to_string())
+            .env("VEXA_HF_CACHE", runtime_dir.join("hf-cache").display().to_string())
             .env("VEXA_NATIVE_SOURCE_DIR", self.source.display().to_string())
             .env("VEXA_NATIVE_RUNTIME_DIR", runtime_dir.display().to_string());
         self.pass(
@@ -935,6 +991,12 @@ fn base_owned(key: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_the_pinned_worker_clis() {
+        let text = "RUN ln -s x && \\\n    npm install -g @anthropic-ai/claude-code@2.1.293 @openai/codex@0.146.0 && \\\n    apt-get clean";
+        assert_eq!(worker_cli_packages(text), vec!["@anthropic-ai/claude-code@2.1.293", "@openai/codex@0.146.0"]);
+    }
 
     #[test]
     fn merge_accepts_equal_values_and_rejects_conflicts() {

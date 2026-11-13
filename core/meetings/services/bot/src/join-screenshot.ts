@@ -1,7 +1,7 @@
 /**
  * The join-failure screenshot — the one picture of WHY a bot did not get in, moved off the pod.
  *
- * The join layer writes checkpoint screenshots to `/app/storage/screenshots/` inside the container.
+ * The join layer writes checkpoint screenshots to its screenshot folder (`SCREENSHOT_DIR` of @vexa/join).
  * Nothing uploaded them, so they died with the pod: on 1 Nov 2026 the founder asked to see the
  * screen a prod bot was refused on, and there was no way to show it. This uploads ONE picture per
  * failed join attempt to meeting-api (`POST /internal/join-evidence/screenshot`), which stores it
@@ -16,10 +16,11 @@
  */
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { SCREENSHOT_DIR } from '@vexa/join';
 import type { Invocation } from './config.js';
 
-/** Where @vexa/join writes its checkpoint screenshots (join.ts, Dockerfile). */
-export const SCREENSHOT_DIR = '/app/storage/screenshots';
+/** Where @vexa/join writes its checkpoint screenshots (`VEXA_SCREENSHOT_DIR`, else the image folder). */
+export { SCREENSHOT_DIR };
 /** meeting-api refuses a larger picture (JOIN_SCREENSHOT_MAX_BYTES); skip it here instead of sending it. */
 export const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
 /** The whole step — capture + upload — waits at most this long before the terminal report goes out. */

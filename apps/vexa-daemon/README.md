@@ -46,7 +46,7 @@ keep a reversible export path.
 
 | Group | Processes | Compose equivalent |
 |---|---|---|
-| `infra` | PostgreSQL 17, Valkey/Redis 7.2, versitygw, storage-init | `postgres`, `redis`, `storage`, `storage-init` |
+| `infra` | PostgreSQL 17, Valkey/Redis 7.2, versitygw, storage-init, vexa-stt | `postgres`, `redis`, `storage`, `storage-init`, the `transcription` stack |
 | `services` | key jobs, schema jobs, admin-api, credential-broker, runtime (`process` backend), model-proxy, meeting-api, agent-api, crm (with outbox), gateway (with service door), flows (API and worker), mcp | the same services, with the desktop Flows and CRM overlays |
 
 By default related services share one Python process
@@ -66,6 +66,46 @@ In a group, every member can read the group's settings. For example gateway
 and mcp code can read the database password that admin-api and meeting-api
 use. This is acceptable for a single-user local app; the Compose layout keeps
 the per-service separation.
+
+### Meeting bots and agent workers
+
+The runtime uses its `process` backend: each meeting bot and each agent
+worker is a normal host process, not a container.
+
+- `bin/vexa-bot-launch` runs the bot (`core/meetings/services/bot/dist`) with
+  Node and the Playwright Chromium in `runtime/ms-playwright`. Each bot gets a
+  private folder for `HOME`, the browser profile, the join screenshots
+  (`VEXA_SCREENSHOT_DIR`) and the signal tapes; the folder is removed when the
+  bot ends. Audio capture runs in the page, so no X display or PulseAudio is
+  needed. Speaking in a meeting (TTS) needs PulseAudio and is not available.
+  The browser window is visible on the Mac desktop.
+- `bin/vexa-agent-worker` runs `python -m worker` from the agent-worker image
+  layout, with the claude-code and codex versions that its Dockerfile pins
+  (installed into `runtime/node-tools`). Each worker gets a private `HOME`.
+
+A host process runs as the Mac user. The container isolation of Compose
+(dropped capabilities, separate networks, a separate tools user, seccomp)
+does not exist here; Chromium keeps its own macOS sandbox.
+
+Prepare the bot once from the checkout:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm --filter "@vexa/capture-codec" --filter "@vexa/gmeet-capture" \
+  --filter "@vexa/mixed-capture-core" --filter "@vexa/record-chunker" \
+  --filter "@vexa/jitsi-capture" --filter "@vexa/teams-capture" \
+  --filter "@vexa/zoom-capture" run build
+pnpm --filter "@vexa/bot..." run build
+R="$HOME/Library/Application Support/Vexa/runtime"
+(cd core/meetings/modules/remote-browser && \
+  PLAYWRIGHT_BROWSERS_PATH="$R/ms-playwright" pnpm exec playwright install chromium)
+VEXA_HF_CACHE="$R/hf-cache" node core/meetings/services/bot/warm-hf-cache.mjs
+```
+
+Checked on 2026-11-13: a bot sent to a Google Meet code that does not exist
+ran as launcher → node → Chromium, reported `requested` → `joining` →
+`failed` (`join_failure`), uploaded its join screenshot to the native storage
+through meeting-api, and left no process or folder.
 
 Each Python service runs from `runtime/apps/<name>`, a symlink tree with the
 same layout as its image (`/app`), built from the `COPY` lines of its
@@ -95,7 +135,8 @@ Measured on 2026-11-13 (Apple M3, `scripts/desktop-memory.py`):
 | Compose stack in Docker Desktop | 8778 MiB |
 | `infra` + daemon | 37.5 MiB |
 | `infra,services`, one process per service (`VEXA_NATIVE_SPLIT=1`) | 1018 MiB |
-| `infra,services`, process groups (default) | 632 MiB |
+| `infra,services`, process groups (default), transcription model unloaded | 611.5 MiB |
+| the same, transcription model loaded (`whisper-server`, 488 MiB) | 1101.5 MiB |
 
 Checked through the native gateway: a token minted by admin-api resolves at
 `/auth/me`, `/meetings` answers 200, and MCP `tools/list` returns 171 tools

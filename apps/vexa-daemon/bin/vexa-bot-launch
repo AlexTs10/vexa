@@ -1,0 +1,44 @@
+#!/bin/bash
+# Native macOS meeting-bot launcher (the runtime's BOT_COMMAND under vexa-daemon).
+#
+# The runtime's process backend runs this once per meeting bot, with an environment built from
+# scratch: host plumbing (PATH, locale, PLAYWRIGHT_BROWSERS_PATH, VEXA_HF_CACHE) and the bot's own
+# invocation (VEXA_BOT_CONFIG). In the bot image each bot has its own filesystem; on the host this
+# launcher gives each bot a private folder instead: HOME, the browser profile, the join screenshots
+# and the captured-signal tapes. The folder is removed when the bot ends.
+#
+# Audio capture runs in the page (WebRTC hook + AudioWorklet), so no X display and no PulseAudio
+# are needed. Chromium uses its native macOS sandbox. Speaking in a meeting (TTS through
+# PulseAudio's virtual microphone in the image) is not available on the host.
+set -u
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source_dir="$(cd "$here/../../.." && pwd)"
+bot_dir="$source_dir/core/meetings/services/bot"
+
+if [ ! -f "$bot_dir/dist/index.js" ]; then
+    echo "[vexa-bot-launch] $bot_dir/dist/index.js is missing; build the bot first" >&2
+    exit 1
+fi
+
+work="$(mktemp -d "${TMPDIR:-/tmp}/vexa-bot.XXXXXX")" || exit 1
+export HOME="$work"
+export BROWSER_DATA_DIR="$work/browser-data"
+export VEXA_SCREENSHOT_DIR="$work/screenshots"
+export VEXA_CAPTURE_SIGNAL_DIR="$work/captured-signal"
+export VEXA_BROWSER_UTILS_PATH="$bot_dir/dist/browser-utils.global.js"
+export NODE_ENV=production
+mkdir -p "$BROWSER_DATA_DIR" "$VEXA_SCREENSHOT_DIR" "$VEXA_CAPTURE_SIGNAL_DIR"
+
+cd "$bot_dir" || exit 1
+node dist/index.js &
+bot=$!
+# The runtime stops a bot with SIGTERM to this process; the bot needs it to leave the meeting.
+trap 'kill -TERM "$bot" 2>/dev/null' TERM INT
+status=0
+while kill -0 "$bot" 2>/dev/null; do
+    wait "$bot"
+    status=$?
+done
+rm -rf "$work"
+exit "$status"
