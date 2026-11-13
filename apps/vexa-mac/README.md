@@ -14,8 +14,7 @@ cargo run --manifest-path apps/vexa-mac/Cargo.toml -- start
 cargo run --manifest-path apps/vexa-mac/Cargo.toml -- open
 ```
 
-The default terminal URL is `http://127.0.0.1:13000/`. The default gateway
-health URL is `http://127.0.0.1:18056/health`.
+The default terminal URL is `http://127.0.0.1:23000/` (the native stack).
 
 Use `VEXA_TERMINAL_URL` or `VEXA_GATEWAY_URL` for another local port.
 

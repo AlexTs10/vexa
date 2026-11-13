@@ -902,6 +902,93 @@ impl Stack {
         merge_specs(base, &members)
     }
 
+    /// The Next.js terminal (clients/terminal) as a host Node process.
+    pub fn terminal(&self) -> Result<Spec, String> {
+        let dir = self.source.join("clients/terminal");
+        if !dir.join(".next/BUILD_ID").is_file() {
+            return Err("the terminal is not built; run `pnpm --filter @vexa/terminal run build`".to_owned());
+        }
+        let node = self
+            .tools
+            .path
+            .split(':')
+            .map(|d| PathBuf::from(d).join("node"))
+            .find(|p| p.is_file())
+            .ok_or("cannot find node on PATH")?;
+        let port = self.env.port("VEXA_TERMINAL_PORT");
+        let stt = self.env.get("TRANSCRIPTION_SERVICE_URL");
+        let spec = Spec::new("terminal", node, Ready::Tcp(port))
+            .args(["server.mjs"])
+            .cwd(dir)
+            .env("PATH", self.tools.path.clone())
+            .env("TZ", "UTC")
+            .env("NODE_ENV", "production")
+            .env("HOST", "127.0.0.1")
+            .env("PORT", port.to_string())
+            .env("GATEWAY_URL", self.p("VEXA_GATEWAY_PORT"))
+            .env("VEXA_API_URL", self.p("VEXA_GATEWAY_PORT"))
+            .env("AGENT_API_URL", self.p("VEXA_AGENT_API_PORT"))
+            .env("VEXA_ADMIN_API_URL", self.p("VEXA_ADMIN_API_PORT"))
+            .env("VEXA_ADMIN_API_KEY", self.env.get("ADMIN_TOKEN"))
+            .env("VEXA_INTERNAL_API_SECRET", self.env.get("INTERNAL_API_SECRET"))
+            .env("VEXA_TERMINAL_SESSION_SECRET", self.env.get("VEXA_TERMINAL_SESSION_SECRET"))
+            .env("NEXTAUTH_SECRET", self.env.get("NEXTAUTH_SECRET"))
+            // The terminal's public URL; next-auth refuses an empty one.
+            .env("NEXTAUTH_URL", {
+                let url = self.env.get("NEXTAUTH_URL");
+                if url.is_empty() { format!("http://localhost:{port}") } else { url }
+            })
+            .env("TRANSCRIPTION_SERVICE_URL", if stt.is_empty() { self.p("VEXA_STT_PORT") } else { stt })
+            .env("TRANSCRIPTION_SERVICE_TOKEN", self.env.get("TRANSCRIPTION_SERVICE_TOKEN"))
+            .env("VEXA_FLOWS_API_URL", format!("{}/to-flows", self.p("VEXA_GATEWAY_SERVICE_DOOR_PORT")))
+            .env("VEXA_CONNECTIONS_BROKER_URL", self.p("VEXA_CREDENTIAL_BROKER_PORT"))
+            .env("VEXA_CONNECTIONS_HUMAN_KEY_FILE", self.keys().connection("human"))
+            .timeout(Duration::from_secs(120));
+        Ok(self.pass(
+            spec,
+            &[
+                ("TERMINAL_CANVAS_ORIGIN", ""),
+                ("TRANSCRIPTION_MODEL", ""),
+                ("VEXA_BOT_API_KEY", ""),
+                ("VEXA_JITSI_HOSTS", ""),
+                ("MAGIC_LINK_SECRET", ""),
+                ("TERMINAL_TRUSTED_PROXIES", ""),
+                ("VEXA_ADMIN_ACCOUNT", ""),
+                ("LIVEKIT_URL", ""),
+                ("GOOGLE_CLIENT_ID", ""),
+                ("GOOGLE_CLIENT_SECRET", ""),
+                ("MICROSOFT_CLIENT_ID", ""),
+                ("MICROSOFT_CLIENT_SECRET", ""),
+                ("MICROSOFT_TENANT_ID", "common"),
+                ("VEXA_OIDC_ISSUER", ""),
+                ("VEXA_OIDC_CLIENT_ID", ""),
+                ("VEXA_OIDC_CLIENT_SECRET", ""),
+                ("VEXA_OIDC_SCOPES", ""),
+                ("VEXA_OIDC_RESOURCE", ""),
+                ("VEXA_OIDC_DISPLAY_NAME", ""),
+                ("VEXA_OIDC_CA_FILE", ""),
+                ("VEXA_OIDC_EMAIL_CLAIM", ""),
+                ("VEXA_OIDC_NAME_CLAIM", ""),
+                ("VEXA_OIDC_REQUIRE_EMAIL_VERIFIED", ""),
+                ("VEXA_SIGNIN_METHODS", ""),
+                ("VEXA_DEV_TEST_USERS", ""),
+                ("VEXA_MAIL_SMTP_HOST", ""),
+                ("VEXA_MAIL_SMTP_PORT", ""),
+                ("VEXA_MAIL_SMTP_FROM", ""),
+                ("VEXA_MAIL_REPLY_TO", ""),
+                ("VEXA_MAIL_RELAY", ""),
+                ("VEXA_MAIL_CAPTURE_SMTP", ""),
+                ("VEXA_MAIL_SMTP_USER", ""),
+                ("VEXA_MAIL_SMTP_PASSWORD", ""),
+                ("VEXA_MAIL_SMTP_PASSWORD_REF", ""),
+                ("VEXA_MAIL_RECIPIENT_ALLOW", ""),
+                ("VEXA_MAIL_SMTP_SECURE", ""),
+                ("VEXA_MAIL_SMTP_TLS_INSECURE", ""),
+                ("VEXA_CONNECTIONS_PUBLIC_ORIGIN", ""),
+            ],
+        ))
+    }
+
     /// Start the application services in Compose dependency order. By
     /// default related services share a process (`native_group.py`);
     /// `VEXA_NATIVE_SPLIT=1` runs one process per service for diagnosis.

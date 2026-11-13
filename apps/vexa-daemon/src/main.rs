@@ -21,7 +21,7 @@ fn shared_status() -> SharedStatus {
 }
 
 const DEFAULT_DAEMON_URL: &str = "http://127.0.0.1:13001/";
-const DEFAULT_TERMINAL_URL: &str = "http://127.0.0.1:13000/";
+const DEFAULT_TERMINAL_URL: &str = "http://127.0.0.1:23000/";
 const SHELL_HTML: &str = include_str!("../../vexa-mac/static/index.html");
 const SHELL_CSS: &str = include_str!("../../vexa-mac/static/app.css");
 
@@ -33,27 +33,27 @@ struct Service {
 const SERVICES: [Service; 6] = [
     Service {
         name: "terminal",
-        port: 13000,
+        port: 23000,
     },
     Service {
         name: "gateway",
-        port: 18056,
+        port: 23056,
     },
     Service {
         name: "agent-api",
-        port: 18100,
+        port: 23100,
     },
     Service {
         name: "meeting-api",
-        port: 18080,
+        port: 23080,
     },
     Service {
         name: "runtime",
-        port: 18090,
+        port: 23090,
     },
     Service {
         name: "mcp",
-        port: 18010,
+        port: 23010,
     },
 ];
 
@@ -231,7 +231,7 @@ fn serve_http(listener: TcpListener) {
 /// The groups of the native stack, in start order. `VEXA_NATIVE_GROUPS`
 /// selects a subset (comma-separated); `none` runs only the shell.
 fn native_groups() -> Vec<String> {
-    let value = env::var("VEXA_NATIVE_GROUPS").unwrap_or_else(|_| "infra".to_owned());
+    let value = env::var("VEXA_NATIVE_GROUPS").unwrap_or_else(|_| "infra,services,ui".to_owned());
     value
         .split(',')
         .map(|group| group.trim().to_owned())
@@ -267,6 +267,7 @@ fn serve() -> Result<(), String> {
             match group.as_str() {
                 "infra" => stack.start_infra(&mut supervisor)?,
                 "services" => stack.start_services(&mut supervisor)?,
+                "ui" => supervisor.start(stack.terminal()?)?,
                 other => return Err(format!("unknown native group `{other}`")),
             }
         }

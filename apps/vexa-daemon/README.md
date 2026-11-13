@@ -42,11 +42,12 @@ keep a reversible export path.
 
 `serve` also runs the native Vexa stack as host processes, with no Docker.
 `VEXA_NATIVE_GROUPS` selects the groups (comma-separated, in start order;
-`none` runs only the shell). The default is `infra`.
+`none` runs only the shell). The default is `infra,services,ui`.
 
 | Group | Processes | Compose equivalent |
 |---|---|---|
 | `infra` | PostgreSQL 17, Valkey/Redis 7.2, versitygw, storage-init, vexa-stt | `postgres`, `redis`, `storage`, `storage-init`, the `transcription` stack |
+| `ui` | the Next.js terminal (`node server.mjs`, built with `pnpm --filter @vexa/terminal run build`) on 127.0.0.1:23000 | `terminal` |
 | `services` | key jobs, schema jobs, admin-api, credential-broker, runtime (`process` backend), model-proxy, meeting-api, agent-api, crm (with outbox), gateway (with service door), flows (API and worker), mcp | the same services, with the desktop Flows and CRM overlays |
 
 By default related services share one Python process
@@ -137,6 +138,10 @@ Measured on 2026-11-13 (Apple M3, `scripts/desktop-memory.py`):
 | `infra,services`, one process per service (`VEXA_NATIVE_SPLIT=1`) | 1018 MiB |
 | `infra,services`, process groups (default), transcription model unloaded | 611.5 MiB |
 | the same, transcription model loaded (`whisper-server`, 488 MiB) | 1101.5 MiB |
+| `infra,services,ui` (adds the terminal, 136 MiB), model loaded | 1225.6 MiB |
+
+A new instance shows the terminal's claim screen. The one-time admin claim
+code is in `logs/edge.log` (`grep -A4 'ADMIN CLAIM CODE'`).
 
 Checked through the native gateway: a token minted by admin-api resolves at
 `/auth/me`, `/meetings` answers 200, and MCP `tools/list` returns 171 tools

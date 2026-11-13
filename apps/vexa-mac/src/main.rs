@@ -9,7 +9,7 @@ use std::{
 };
 
 const DEFAULT_DAEMON_URL: &str = "http://127.0.0.1:13001/";
-const DEFAULT_TERMINAL_URL: &str = "http://127.0.0.1:13000/";
+const DEFAULT_TERMINAL_URL: &str = "http://127.0.0.1:23000/";
 
 fn main() -> ExitCode {
     match run() {

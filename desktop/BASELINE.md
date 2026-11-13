@@ -48,6 +48,10 @@ budget.
 | Date | Layout | Host footprint |
 |---|---|---|
 | 2026-11-13 | Full Compose stack in Docker Desktop (16 containers) | 8778 MiB |
+| 2026-11-14 | Native stack under vexa-daemon (`infra,services,ui`), transcription model unloaded | about 737 MiB |
+| 2026-11-14 | The same, transcription model loaded | 1226 MiB |
+
+The native stack is described in `apps/vexa-daemon/README.md`.
 
 The checker validates only local availability and running service state. It
 does not send a bot, call a model, or send email. Those actions need configured

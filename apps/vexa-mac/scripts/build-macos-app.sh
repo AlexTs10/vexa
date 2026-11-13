@@ -6,13 +6,17 @@ bundle_root="${VEXA_MAC_BUNDLE_DIR:-$project_root/target/Vexa.app}"
 binary="$project_root/target/release/vexa-mac"
 daemon_project_root="$project_root/../vexa-daemon"
 daemon_binary="$daemon_project_root/target/release/vexa-daemon"
+stt_project_root="$project_root/../vexa-stt"
+stt_binary="$stt_project_root/target/release/vexa-stt"
 
 cargo build --manifest-path "$project_root/Cargo.toml" --release
 cargo build --manifest-path "$daemon_project_root/Cargo.toml" --release
+cargo build --manifest-path "$stt_project_root/Cargo.toml" --release
 rm -rf "$bundle_root"
 mkdir -p "$bundle_root/Contents/MacOS"
 cp "$binary" "$bundle_root/Contents/MacOS/Vexa"
 cp "$daemon_binary" "$bundle_root/Contents/MacOS/vexa-daemon"
+cp "$stt_binary" "$bundle_root/Contents/MacOS/vexa-stt"
 
 cat > "$bundle_root/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
