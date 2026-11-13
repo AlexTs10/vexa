@@ -1,0 +1,14 @@
+# Local desktop development overlay.
+#
+# It builds only the Terminal from the checkout. The image has a separate local
+# name, so it cannot replace a published vexaai/* release image on the host.
+# Use it with the normal compose file and the install's .env file:
+#
+#   docker compose -p vexa-v012 \
+#     --env-file ../vexa/deploy/compose/.env \
+#     -f deploy/compose/docker-compose.yml \
+#     -f deploy/compose/docker-compose.desktop.yml \
+#     up -d --build --no-deps terminal
+services:
+  terminal:
+    image: vexa/vexa-terminal:local
