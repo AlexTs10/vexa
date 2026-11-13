@@ -141,6 +141,18 @@ desktop start command. It replaces the API command with `flows_combined` and
 keeps `flows-worker` as the explicit `legacy-flows` rollback profile. Do not
 run both worker modes at the same time.
 
+## Desktop CRM process
+
+The desktop CRM overlay runs the existing CRM API and its existing outbox loop
+in one process. It does not change the database, the Flow event format, or the
+delivery retry rules. The API receives the outbox's narrow Flow publish key and
+its private fact seal key only in this desktop mode.
+
+Include `docker-compose.desktop-crm.yml` with the normal desktop files. It
+puts the separate `crm-outbox` service in the explicit `legacy-crm-outbox`
+rollback profile. Do not start both modes at the same time. A delivery can be
+sent twice after a crash, by design, but Flow event IDs make that safe.
+
 Storage readiness checks the same endpoint as meeting-api (`S3_ENDPOINT`, else `MINIO_ENDPOINT`
 with `MINIO_SECURE`), creates the bucket if absent, and verifies a PUT/GET/DELETE probe outside
 `recordings/`. Any failure prevents meeting-api from starting. After a MinIO upgrade, old

@@ -10,6 +10,7 @@ import dataclasses
 import hmac
 import json
 import os
+import threading
 from pathlib import Path
 from typing import Literal
 
@@ -33,6 +34,45 @@ from .persons import PersonError, PersonRefused
 from .store import CRMError, PENDING_AUDIT, Refused, SharedRefused, Store, check_workspace
 
 TRACE_HEADER = 'x-trace-id'
+OUTBOX_ENABLED_ENV = 'VEXA_CRM_OUTBOX_ENABLED'
+
+
+def outbox_enabled(env=None) -> bool:
+    """True only when the desktop deployment explicitly combines CRM delivery.
+
+    The normal server deployment keeps the API and the delivery worker as two
+    services. The desktop overlay sets this flag after it gives this process
+    the outbox's narrow publish key and private seal key.
+    """
+    env = os.environ if env is None else env
+    return (env.get(OUTBOX_ENABLED_ENV) or '').strip().lower() == 'true'
+
+
+def start_outbox_loop(engine, env=None):
+    """Start the existing bounded outbox delivery loop in this API process.
+
+    The API and the former worker use the same transaction, signing, retry,
+    and error rules from ``crm.outbox``.
+    """
+    env = os.environ if env is None else env
+    from . import outbox
+    outbox.preflight(env)
+    stop = threading.Event()
+    endpoint = env.get('FLOWS_API_URL', '')
+    token = env.get('FLOWS_PUBLISH_KEY', '')
+
+    def run():
+        while not stop.is_set():
+            try:
+                result = outbox.deliver(engine, endpoint, token)
+            except Exception:  # noqa: BLE001 -- retry without exposing data or credentials
+                result = {'delivered': 0, 'pending': True}
+            delay = 1 if result.get('delivered') else 10
+            stop.wait(delay)
+
+    thread = threading.Thread(target=run, name='crm-outbox', daemon=True)
+    thread.start()
+    return stop, thread
 
 
 class Body(BaseModel):
@@ -793,6 +833,26 @@ def configured_app():
     # migrations path's function: crm-api's role cannot write orgs, policies or definitions itself
     resolver = OrgResolver(org_id, base, secret,
                            ensure_org=lambda org, name: ensure_personal_org(engine, org, name))
-    return create_app(Store(engine), Identity(base, secret), org_id, secret, limits=limits,
-                      policy_text=PolicyText(limits), profiles=profiles_mod.ProfileClient(base, secret),
-                      org_resolver=resolver)
+    app = create_app(Store(engine), Identity(base, secret), org_id, secret, limits=limits,
+                     policy_text=PolicyText(limits), profiles=profiles_mod.ProfileClient(base, secret),
+                     org_resolver=resolver)
+    if not outbox_enabled():
+        return app
+
+    # Desktop-only process merge. The flag is explicit so a server deployment
+    # never takes the outbox key or starts a second delivery loop by accident.
+    @app.on_event('startup')
+    def start_desktop_outbox():
+        stop, thread = start_outbox_loop(engine)
+        app.state.crm_outbox_stop = stop
+        app.state.crm_outbox_thread = thread
+
+    @app.on_event('shutdown')
+    def stop_desktop_outbox():
+        stop = getattr(app.state, 'crm_outbox_stop', None)
+        thread = getattr(app.state, 'crm_outbox_thread', None)
+        if stop is not None:
+            stop.set()
+        if thread is not None:
+            thread.join(timeout=2)
+    return app

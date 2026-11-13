@@ -1,0 +1,19 @@
+# Desktop CRM process merge. The API starts the existing bounded outbox loop
+# only after it receives the outbox's narrow publish credential and seal key.
+# Keep the separate outbox behind an explicit rollback profile. Do not run
+# both modes at once: they can deliver the same pending event twice.
+services:
+  crm-api:
+    environment:
+      - VEXA_CRM_OUTBOX_ENABLED=true
+      - FLOWS_API_URL=${VEXA_FLOWS_API_URL:-http://flows-api:8200}
+      - FLOWS_PUBLISH_KEY=${VEXA_FLOWS_CRM_PUBLISH_KEY:-}
+      - VEXA_FACT_SEAL_KEY_FILE=/run/vexa-fact-seal/crm.pem
+    volumes:
+      - fact-seal-crm-key:/run/vexa-fact-seal:ro
+    depends_on:
+      fact-seal-keys:
+        condition: service_completed_successfully
+
+  crm-outbox:
+    profiles: ["legacy-crm-outbox"]
