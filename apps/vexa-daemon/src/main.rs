@@ -1,4 +1,6 @@
 mod config;
+mod pyapp;
+mod services;
 mod stack;
 mod supervisor;
 
@@ -264,6 +266,7 @@ fn serve() -> Result<(), String> {
         for group in &groups {
             match group.as_str() {
                 "infra" => stack.start_infra(&mut supervisor)?,
+                "services" => stack.start_services(&mut supervisor)?,
                 other => return Err(format!("unknown native group `{other}`")),
             }
         }

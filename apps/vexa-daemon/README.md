@@ -47,6 +47,14 @@ keep a reversible export path.
 | Group | Processes | Compose equivalent |
 |---|---|---|
 | `infra` | PostgreSQL 17, Valkey/Redis 7.2, versitygw, storage-init | `postgres`, `redis`, `storage`, `storage-init` |
+| `services` | key jobs, schema jobs, admin-api, credential-broker, runtime (`process` backend), model-proxy, meeting-api, agent-api, crm (with outbox), gateway (with service door), flows (API and worker), mcp | the same services, with the desktop Flows and CRM overlays |
+
+Each Python service runs from `runtime/apps/<name>`, a symlink tree with the
+same layout as its image (`/app`), built from the `COPY` lines of its
+Dockerfile. Its environment is `runtime/venvs/<name>`, made by `uv sync`
+with the Dockerfile's arguments. A source change needs only a restart.
+`python/native_launch.py` runs crm-api and model-proxy on loopback and a
+given port; their image entry points use fixed ports on all interfaces.
 
 The daemon starts each process, waits until it is ready, restarts it after a
 crash (backoff 1–32 s), and stops all processes in reverse order on SIGINT or
@@ -62,5 +70,14 @@ BSD-licensed `redis-server` 7.2, `versitygw`, and `uv`. Override a path with
 `VEXA_PG_BIN_DIR`, `VEXA_REDIS_SERVER`, `VEXA_VERSITYGW` or `VEXA_UV`.
 `VEXA_SOURCE_DIR` points at the Vexa checkout.
 
-Measured on 2026-11-13 (Apple M3): the `infra` group plus the daemon use
-37.5 MiB of physical memory.
+Measured on 2026-11-13 (Apple M3, `scripts/desktop-memory.py`):
+
+| Layout | Host footprint |
+|---|---|
+| Compose stack in Docker Desktop | 8778 MiB |
+| `infra` + daemon | 37.5 MiB |
+| `infra,services` (10 Python processes) | 1018 MiB |
+
+Checked through the native gateway: a token minted by admin-api resolves at
+`/auth/me`, `/meetings` answers 200, and MCP `tools/list` returns 171 tools
+from every domain.

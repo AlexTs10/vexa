@@ -43,7 +43,7 @@ pub const PREFIXED_IDS: [(&str, &str); 3] = [
 
 /// Non-secret defaults. The native ports use the 23xxx range so the native
 /// stack can run beside the Compose stack (18xxx/13xxx) during migration.
-pub const DEFAULTS: [(&str, &str); 29] = [
+pub const DEFAULTS: [(&str, &str); 31] = [
     ("VEXA_PG_PORT", "23432"),
     ("VEXA_REDIS_PORT", "23379"),
     ("VEXA_STORAGE_PORT", "23900"),
@@ -66,6 +66,8 @@ pub const DEFAULTS: [(&str, &str); 29] = [
     ("MINIO_BUCKET", "vexa"),
     ("VEXA_SESSIONS_S3_BUCKET", "vexa-sessions"),
     ("CRM_DB_USER", "vexa_crm"),
+    ("CRM_ORG_ID", "local"),
+    ("CRM_ORG_NAME", "Vexa Local"),
     ("LOG_LEVEL", "info"),
     ("VEXA_ENV", "development"),
     ("VEXA_CONNECTIONS_STORE", "local"),
