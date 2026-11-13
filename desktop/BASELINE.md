@@ -40,6 +40,15 @@ Run this from a checkout while the full Compose stack is running:
 scripts/desktop-baseline.sh
 ```
 
+The checker also prints the memory report from `scripts/desktop-memory.py`.
+The report uses the macOS physical footprint (the Activity Monitor "Memory"
+value). Set `VEXA_DESKTOP_MEM_BUDGET_MB` to make the check fail above a
+budget.
+
+| Date | Layout | Host footprint |
+|---|---|---|
+| 2026-11-13 | Full Compose stack in Docker Desktop (16 containers) | 8778 MiB |
+
 The checker validates only local availability and running service state. It
 does not send a bot, call a model, or send email. Those actions need configured
 external credentials and are tested by their existing integration suites.

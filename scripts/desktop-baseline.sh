@@ -66,6 +66,9 @@ check_http "Terminal UI" "$terminal_url" "200"
 check_http "Gateway health" "${gateway_url%/}/health" "200"
 check_services
 
+printf '\n'
+python3 "$(dirname "$0")/desktop-memory.py" || red "memory is above VEXA_DESKTOP_MEM_BUDGET_MB"
+
 printf '\n═══ desktop baseline summary ═══\n'
 if [ "$failed" -eq 0 ]; then
   printf 'GREEN — local startup baseline holds.\n'
