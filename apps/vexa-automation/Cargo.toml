@@ -1,0 +1,10 @@
+[package]
+name = "vexa-automation"
+version = "0.1.0"
+edition = "2021"
+description = "Local control surface for the future Vexa automation engine"
+license = "AGPL-3.0-or-later"
+
+[[bin]]
+name = "vexa-automation"
+path = "src/main.rs"

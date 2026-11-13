@@ -1,0 +1,10 @@
+[package]
+name = "vexa-mac"
+version = "0.1.0"
+edition = "2021"
+description = "Small macOS launcher for a local Vexa deployment"
+license = "Apache-2.0"
+
+[[bin]]
+name = "vexa-mac"
+path = "src/main.rs"

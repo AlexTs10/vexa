@@ -1,0 +1,10 @@
+[package]
+name = "vexa-daemon"
+version = "0.1.0"
+edition = "2021"
+description = "Local control plane for the Vexa Mac app"
+license = "MIT"
+
+[[bin]]
+name = "vexa-daemon"
+path = "src/main.rs"

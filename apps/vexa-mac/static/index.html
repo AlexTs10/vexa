@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vexa Mac</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">LOCAL MAC SHELL</p>
+      <h1>Vexa Mac</h1>
+      <p class="intro">This shell keeps the current Vexa terminal unchanged while native routes replace it in small steps.</p>
+      <section aria-labelledby="services-heading">
+        <div class="section-header">
+          <h2 id="services-heading">Local services</h2>
+          <button id="refresh" type="button">Refresh</button>
+        </div>
+        <ul id="services" aria-live="polite"><li>Checking local services…</li></ul>
+      </section>
+      <a class="launch" href="__VEXA_TERMINAL_URL__">Open current Vexa</a>
+      <p class="hint">The native shell does not contain authentication, meetings, or agent routes yet.</p>
+    </main>
+    <script>
+      const services = document.getElementById('services');
+      async function refreshStatus() {
+        services.innerHTML = '<li>Checking local services…</li>';
+        try {
+          const response = await fetch('/status', { cache: 'no-store' });
+          const data = await response.json();
+          services.replaceChildren(...data.services.map((service) => {
+            const item = document.createElement('li');
+            const state = service.ready ? 'ready' : 'not running';
+            item.innerHTML = `<strong>${service.name}</strong><span class="${state.replace(' ', '-')}">${state}</span>`;
+            return item;
+          }));
+        } catch (_) {
+          services.innerHTML = '<li>Cannot read shell status.</li>';
+        }
+      }
+      document.getElementById('refresh').addEventListener('click', refreshStatus);
+      refreshStatus();
+    </script>
+  </body>
+</html>

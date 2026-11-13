@@ -1,0 +1,10 @@
+[package]
+name = "vexa-bootstrap"
+version = "0.1.0"
+edition = "2021"
+description = "Local macOS bootstrap for Vexa desktop migration"
+license = "Apache-2.0"
+
+[[bin]]
+name = "vexa-bootstrap"
+path = "src/main.rs"
