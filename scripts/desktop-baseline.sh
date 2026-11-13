@@ -6,10 +6,9 @@ set -euo pipefail
 terminal_url="${VEXA_DESKTOP_TERMINAL_URL:-http://127.0.0.1:13000}"
 gateway_url="${VEXA_DESKTOP_GATEWAY_URL:-http://127.0.0.1:18056}"
 compose_project="${VEXA_DESKTOP_COMPOSE_PROJECT:-vexa-v012}"
-compose_file="${VEXA_DESKTOP_COMPOSE_FILE:-deploy/compose/docker-compose.yml}"
 
 required_services=(
-  admin-api agent-api credential-broker flows-api flows-worker gateway mcp
+  admin-api agent-api credential-broker flows-api gateway mcp
   meeting-api model-proxy postgres redis runtime storage terminal
 )
 
@@ -37,7 +36,11 @@ check_services() {
   local rows service status missing=""
   printf '\n━━ Full local service state ━━\n'
   printf '   Expected: every required service is running; health-checked services are healthy\n'
-  rows="$(docker compose -p "$compose_project" -f "$compose_file" ps --format json 2>&1 || true)"
+  # Read container labels. This needs no .env file, so it works in any worktree.
+  # flows-worker and crm-outbox are not required: the desktop processes
+  # combine them into flows-api and crm-api.
+  rows="$(docker ps --filter "label=com.docker.compose.project=$compose_project" \
+    --format '{"Service":"{{.Label "com.docker.compose.service"}}","State":"{{.State}}","Health":"{{.Status}}"}' 2>&1 || true)"
   for service in "${required_services[@]}"; do
     status="$(printf '%s\n' "$rows" | SERVICE="$service" python3 -c '
 import json, os, sys
