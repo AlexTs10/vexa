@@ -49,6 +49,24 @@ keep a reversible export path.
 | `infra` | PostgreSQL 17, Valkey/Redis 7.2, versitygw, storage-init | `postgres`, `redis`, `storage`, `storage-init` |
 | `services` | key jobs, schema jobs, admin-api, credential-broker, runtime (`process` backend), model-proxy, meeting-api, agent-api, crm (with outbox), gateway (with service door), flows (API and worker), mcp | the same services, with the desktop Flows and CRM overlays |
 
+By default related services share one Python process
+(`python/native_group.py`): the **edge** group runs admin-api, meeting-api,
+gateway with its service door, and mcp; the **agent** group runs agent-api and
+model-proxy. mcp starts last in the edge process, after agent-api, flows and
+crm answer `/health`, because it assembles their tools when it is built. The
+runtime (it forks children) and the credential-broker (it sets a process-wide
+umask) keep their own processes. A group gets the union of its members'
+settings; two members that need different values for one setting stop the
+start with an error. The edge environment is `python/groups/edge`, made by
+`python/merge_groups.py` from the members' requirements and limited to the
+highest version each member's own lock uses. `VEXA_NATIVE_SPLIT=1` runs one
+process per service.
+
+In a group, every member can read the group's settings. For example gateway
+and mcp code can read the database password that admin-api and meeting-api
+use. This is acceptable for a single-user local app; the Compose layout keeps
+the per-service separation.
+
 Each Python service runs from `runtime/apps/<name>`, a symlink tree with the
 same layout as its image (`/app`), built from the `COPY` lines of its
 Dockerfile. Its environment is `runtime/venvs/<name>`, made by `uv sync`
@@ -76,8 +94,9 @@ Measured on 2026-11-13 (Apple M3, `scripts/desktop-memory.py`):
 |---|---|
 | Compose stack in Docker Desktop | 8778 MiB |
 | `infra` + daemon | 37.5 MiB |
-| `infra,services` (10 Python processes) | 1018 MiB |
+| `infra,services`, one process per service (`VEXA_NATIVE_SPLIT=1`) | 1018 MiB |
+| `infra,services`, process groups (default) | 632 MiB |
 
 Checked through the native gateway: a token minted by admin-api resolves at
 `/auth/me`, `/meetings` answers 200, and MCP `tools/list` returns 171 tools
-from every domain.
+from every domain. The process groups give the same results.

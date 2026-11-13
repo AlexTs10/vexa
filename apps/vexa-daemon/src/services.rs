@@ -97,6 +97,17 @@ pub const FLOWS: PyApp = PyApp {
     workdir: "app/src",
 };
 
+/// The merged environment of the edge process group (merge_groups.py).
+pub const EDGE_ENV: PyApp = PyApp {
+    name: "group-edge",
+    context: "apps/vexa-daemon/python/groups/edge",
+    dockerfile: "",
+    project: "apps/vexa-daemon/python/groups/edge",
+    sync: NO_DEV,
+    pythonpath: "",
+    workdir: "",
+};
+
 pub const ALL: [&PyApp; 9] = [&ADMIN, &RUNTIME, &MEETING, &AGENT, &GATEWAY, &MCP, &BROKER, &CRM, &FLOWS];
 
 /// Paths of the key and state volumes on the host.
@@ -782,8 +793,89 @@ impl Stack {
         )
     }
 
-    /// Start the application services in Compose dependency order.
+    fn group_runner(&self) -> String {
+        self.source.join("apps/vexa-daemon/python/native_group.py").display().to_string()
+    }
+
+    /// The edge process group: admin-api, meeting-api, gateway (and its
+    /// service door) and mcp in one interpreter.
+    pub fn edge_group(&self) -> Result<Spec, String> {
+        let runtime = self.layout.runtime();
+        let members = [self.admin_api(), self.meeting_api(), self.gateway(), self.mcp()];
+        let pythonpath = [&ADMIN, &MEETING, &GATEWAY, &MCP]
+            .iter()
+            .map(|app| app.root(&runtime).join(app.pythonpath).display().to_string())
+            .collect::<Vec<_>>()
+            .join(":");
+        let gateway_port = self.env.port("VEXA_GATEWAY_PORT");
+        let base = Spec::new("edge", EDGE_ENV.venv(&runtime).join("bin/python"), Ready::Http(gateway_port, "/health".into()))
+            .args([self.group_runner(), "edge".to_owned()])
+            .cwd(GATEWAY.root(&runtime).join(GATEWAY.workdir))
+            .env("PATH", format!("{}:{}", EDGE_ENV.venv(&runtime).join("bin").display(), self.tools.path))
+            .env("PYTHONPATH", pythonpath)
+            .env("VEXA_ADMIN_API_PORT", self.env.get("VEXA_ADMIN_API_PORT"))
+            .env("VEXA_MEETING_API_PORT", self.env.get("VEXA_MEETING_API_PORT"))
+            .env("VEXA_GATEWAY_PORT", gateway_port.to_string())
+            .env("VEXA_MCP_PORT", self.env.get("VEXA_MCP_PORT"))
+            .env(
+                "VEXA_NATIVE_MCP_WAIT_URLS",
+                [
+                    format!("{}/health", self.p("VEXA_AGENT_API_PORT")),
+                    format!("{}/health", self.p("VEXA_FLOWS_PORT")),
+                    format!("{}/health", self.p("VEXA_CRM_PORT")),
+                ]
+                .join(","),
+            )
+            .timeout(Duration::from_secs(120));
+        merge_specs(base, &members)
+    }
+
+    /// The agent process group: agent-api and model-proxy (one environment).
+    pub fn agent_group(&self) -> Result<Spec, String> {
+        let runtime = self.layout.runtime();
+        let port = self.env.port("VEXA_AGENT_API_PORT");
+        let members = [self.agent_api(), self.model_proxy()];
+        let base = Spec::new("agent", AGENT.venv(&runtime).join("bin/python"), Ready::Http(port, "/health".into()))
+            .args([self.group_runner(), "agent".to_owned()])
+            .cwd(AGENT.root(&runtime).join(AGENT.workdir))
+            .env("PATH", format!("{}:{}", AGENT.venv(&runtime).join("bin").display(), self.tools.path))
+            .env("PYTHONPATH", AGENT.root(&runtime).join(AGENT.pythonpath).display().to_string())
+            .env("VEXA_AGENT_API_PORT", port.to_string())
+            .env("VEXA_MODEL_PROXY_PORT", self.env.get("VEXA_MODEL_PROXY_PORT"))
+            .timeout(Duration::from_secs(120));
+        merge_specs(base, &members)
+    }
+
+    /// Start the application services in Compose dependency order. By
+    /// default related services share a process (`native_group.py`);
+    /// `VEXA_NATIVE_SPLIT=1` runs one process per service for diagnosis.
     pub fn start_services(&self, supervisor: &mut Supervisor) -> Result<(), String> {
+        if std::env::var("VEXA_NATIVE_SPLIT").as_deref() == Ok("1") {
+            return self.start_services_split(supervisor);
+        }
+        self.prepare_python()?;
+        EDGE_ENV.prepare_env(&self.source, &self.layout.runtime(), &self.tools.uv, &self.tools.path)?;
+        for job in self.key_jobs() {
+            supervisor.start(job)?;
+        }
+        for job in self.schema_jobs() {
+            supervisor.start(job)?;
+        }
+        supervisor.start(self.credential_broker())?;
+        supervisor.start(self.runtime())?;
+        supervisor.start(self.edge_group()?)?;
+        supervisor.start(self.agent_group()?)?;
+        supervisor.start(self.crm())?;
+        supervisor.start(self.flows())?;
+        supervisor.await_ready(
+            "mcp",
+            &Ready::Http(self.env.port("VEXA_MCP_PORT"), "/health".into()),
+            Duration::from_secs(180),
+        )?;
+        Ok(())
+    }
+
+    fn start_services_split(&self, supervisor: &mut Supervisor) -> Result<(), String> {
         self.prepare_python()?;
         for job in self.key_jobs() {
             supervisor.start(job)?;
@@ -802,5 +894,60 @@ impl Stack {
         supervisor.start(self.flows())?;
         supervisor.start(self.mcp())?;
         Ok(())
+    }
+}
+
+/// Keys that every member sets for itself; the group sets its own values.
+const PER_PROCESS_KEYS: [&str; 4] = ["HOST", "PORT", "PATH", "PYTHONPATH"];
+
+/// Merge the environments of several service specs into one group spec.
+/// Two members that need different values for one key are an error: one
+/// process has one environment.
+pub fn merge_specs(base: Spec, members: &[Spec]) -> Result<Spec, String> {
+    let mut merged = base;
+    let mut conflicts = Vec::new();
+    for member in members {
+        for (key, value) in &member.env {
+            if PER_PROCESS_KEYS.contains(&key.as_str()) || merged.env.contains_key(key) && base_owned(key) {
+                continue;
+            }
+            match merged.env.get(key) {
+                Some(existing) if existing != value => conflicts.push(format!("{key} ({} vs {})", merged.name, member.name)),
+                Some(_) => {}
+                None => {
+                    merged.env.insert(key.clone(), value.clone());
+                }
+            }
+        }
+    }
+    if conflicts.is_empty() {
+        Ok(merged)
+    } else {
+        Err(format!("{}: members need different values for {}", merged.name, conflicts.join(", ")))
+    }
+}
+
+/// Keys the group spec sets itself (ports of the members).
+fn base_owned(key: &str) -> bool {
+    key.starts_with("VEXA_") && key.ends_with("_PORT")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn merge_accepts_equal_values_and_rejects_conflicts() {
+        let base = Spec::new("group", "/bin/true", Ready::Exit).env("VEXA_A_PORT", "1");
+        let a = Spec::new("a", "/bin/true", Ready::Exit).env("SHARED", "x").env("PORT", "1").env("VEXA_A_PORT", "9");
+        let b = Spec::new("b", "/bin/true", Ready::Exit).env("SHARED", "x").env("PORT", "2").env("ONLY_B", "y");
+        let merged = merge_specs(base.clone(), &[a.clone(), b]).unwrap();
+        assert_eq!(merged.env["SHARED"], "x");
+        assert_eq!(merged.env["ONLY_B"], "y");
+        assert_eq!(merged.env["VEXA_A_PORT"], "1");
+        assert!(!merged.env.contains_key("PORT"));
+        let c = Spec::new("c", "/bin/true", Ready::Exit).env("SHARED", "z");
+        let error = merge_specs(base, &[a, c]).unwrap_err();
+        assert!(error.contains("SHARED"), "{error}");
     }
 }

@@ -1,0 +1,14 @@
+[package]
+name = "vexa-stt"
+version = "0.1.0"
+edition = "2021"
+description = "Native transcription service for the Vexa Mac app (whisper.cpp with Metal)"
+license = "MIT"
+
+[[bin]]
+name = "vexa-stt"
+path = "src/main.rs"
+
+[dependencies]
+# MIT OR Zlib OR Apache-2.0: zlib compression for the segment compression ratio.
+miniz_oxide = "0.8"

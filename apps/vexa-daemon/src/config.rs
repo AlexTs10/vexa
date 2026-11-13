@@ -152,7 +152,12 @@ fn render(values: &BTreeMap<String, String>) -> String {
          # example ANTHROPIC_API_KEY=... or VEXA_ADMIN_EMAILS=you@example.com.\n",
     );
     for (key, value) in values {
-        text.push_str(&format!("{key}={value}\n"));
+        // Quote a value with spaces, so a shell can also read the file.
+        if value.contains(char::is_whitespace) && !value.starts_with('"') {
+            text.push_str(&format!("{key}=\"{value}\"\n"));
+        } else {
+            text.push_str(&format!("{key}={value}\n"));
+        }
     }
     text
 }
@@ -235,5 +240,8 @@ mod tests {
         let second = load_or_create(&dir).unwrap();
         assert_eq!(first.get("DB_PASSWORD"), second.get("DB_PASSWORD"));
         assert_eq!(second.port("VEXA_PG_PORT"), 23432);
+        let text = fs::read_to_string(path(&dir)).unwrap();
+        assert!(text.contains("CRM_ORG_NAME=\"Vexa Local\""));
+        assert_eq!(second.get("CRM_ORG_NAME"), "Vexa Local");
     }
 }

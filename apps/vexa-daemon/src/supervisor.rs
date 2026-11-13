@@ -306,6 +306,24 @@ impl Supervisor {
         Ok(())
     }
 
+    /// Wait until a part of an already started process is ready (for example
+    /// a listener that a process group opens after its other listeners).
+    pub fn await_ready(&self, name: &str, ready: &Ready, timeout: Duration) -> Result<(), String> {
+        let deadline = Instant::now() + timeout;
+        while !is_ready(ready) {
+            if stop_requested() {
+                return Err("stop requested".to_owned());
+            }
+            if Instant::now() >= deadline {
+                return Err(format!("{name} did not become ready in {timeout:?}"));
+            }
+            thread::sleep(Duration::from_millis(250));
+        }
+        println!("vexa-daemon: {name} is ready");
+        set_status(&self.status, name, None, "ready", 0);
+        Ok(())
+    }
+
     /// Watch the running processes until a stop is requested.
     pub fn watch(&mut self) {
         while !stop_requested() {

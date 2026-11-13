@@ -178,6 +178,11 @@ impl PyApp {
         runtime.join("apps").join(self.name)
     }
 
+    /// Only the locked environment (for a process group, which has no image).
+    pub fn prepare_env(&self, source: &Path, runtime: &Path, uv: &Path, path_env: &str) -> Result<(), String> {
+        ensure_venv(uv, &source.join(self.project), &self.venv(runtime), self.sync, path_env)
+    }
+
     pub fn prepare(&self, source: &Path, runtime: &Path, uv: &Path, path_env: &str) -> Result<(), String> {
         assemble(&source.join(self.context), &source.join(self.dockerfile), &self.root(runtime))?;
         ensure_venv(uv, &source.join(self.project), &self.venv(runtime), self.sync, path_env)
