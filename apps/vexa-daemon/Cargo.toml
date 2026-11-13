@@ -8,3 +8,6 @@ license = "MIT"
 [[bin]]
 name = "vexa-daemon"
 path = "src/main.rs"
+
+[dependencies]
+libc = "0.2"

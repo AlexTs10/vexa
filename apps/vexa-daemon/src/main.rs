@@ -1,9 +1,22 @@
+mod config;
+mod stack;
+mod supervisor;
+
 use std::env;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::OnceLock;
 use std::time::Duration;
+
+use supervisor::SharedStatus;
+
+static STATUS: OnceLock<SharedStatus> = OnceLock::new();
+
+fn shared_status() -> SharedStatus {
+    STATUS.get_or_init(SharedStatus::default).clone()
+}
 
 const DEFAULT_DAEMON_URL: &str = "http://127.0.0.1:13001/";
 const DEFAULT_TERMINAL_URL: &str = "http://127.0.0.1:13000/";
@@ -93,18 +106,32 @@ fn status_json() -> String {
         })
         .collect::<Vec<_>>()
         .join(",");
+    let processes = shared_status()
+        .lock()
+        .expect("status lock")
+        .iter()
+        .map(|entry| {
+            format!(
+                r#"{{"name":"{}","state":"{}","pid":{},"restarts":{}}}"#,
+                entry.name,
+                entry.state,
+                entry.pid.map_or("null".to_owned(), |pid| pid.to_string()),
+                entry.restarts
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
     format!(
-        r#"{{"app_support":"{}","services":[{}]}}"#,
+        r#"{{"app_support":"{}","services":[{}],"processes":[{}]}}"#,
         app_support_dir().display(),
-        services
+        services,
+        processes
     )
 }
 
 fn init() -> Result<(), String> {
     let path = app_support_dir();
-    for child in ["config", "data", "logs", "recordings", "state"] {
-        std::fs::create_dir_all(path.join(child)).map_err(|error| error.to_string())?;
-    }
+    stack::Layout::new(path.clone()).create()?;
     println!("Vexa local folders are ready at {}", path.display());
     Ok(())
 }
@@ -186,13 +213,7 @@ fn handle_request(mut stream: TcpStream) -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
-fn serve() -> Result<(), String> {
-    init_store()?;
-    let url = daemon_url();
-    let address = socket_address(&url).ok_or_else(|| format!("invalid VEXA_DAEMON_URL: {url}"))?;
-    let listener = TcpListener::bind(address)
-        .map_err(|error| format!("cannot start Vexa daemon at {url}: {error}"))?;
-    println!("Vexa daemon is listening on {url}");
+fn serve_http(listener: TcpListener) {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
@@ -203,6 +224,63 @@ fn serve() -> Result<(), String> {
             Err(error) => eprintln!("vexa-daemon: connection failed: {error}"),
         }
     }
+}
+
+/// The groups of the native stack, in start order. `VEXA_NATIVE_GROUPS`
+/// selects a subset (comma-separated); `none` runs only the shell.
+fn native_groups() -> Vec<String> {
+    let value = env::var("VEXA_NATIVE_GROUPS").unwrap_or_else(|_| "infra".to_owned());
+    value
+        .split(',')
+        .map(|group| group.trim().to_owned())
+        .filter(|group| !group.is_empty() && group != "none")
+        .collect()
+}
+
+fn serve() -> Result<(), String> {
+    init_store()?;
+    supervisor::install_signal_handlers();
+    let url = daemon_url();
+    let address = socket_address(&url).ok_or_else(|| format!("invalid VEXA_DAEMON_URL: {url}"))?;
+    let listener = TcpListener::bind(address)
+        .map_err(|error| format!("cannot start Vexa daemon at {url}: {error}"))?;
+    println!("Vexa daemon is listening on {url}");
+    std::thread::spawn(move || serve_http(listener));
+
+    let groups = native_groups();
+    let layout = stack::Layout::new(app_support_dir());
+    layout.create()?;
+    let mut supervisor = supervisor::Supervisor::new(layout.logs(), shared_status());
+    let result = (|| -> Result<(), String> {
+        if groups.is_empty() {
+            return Ok(());
+        }
+        let stack = stack::Stack {
+            env: config::load_or_create(&layout.config())?,
+            tools: stack::Tools::discover()?,
+            source: stack::source_dir()?,
+            layout: layout.clone(),
+        };
+        for group in &groups {
+            match group.as_str() {
+                "infra" => stack.start_infra(&mut supervisor)?,
+                other => return Err(format!("unknown native group `{other}`")),
+            }
+        }
+        println!("vexa-daemon: native stack is ready ({})", groups.join(", "));
+        Ok(())
+    })();
+    match result {
+        Ok(()) => supervisor.watch(),
+        Err(error) if supervisor::stop_requested() => eprintln!("vexa-daemon: {error}"),
+        Err(error) => {
+            eprintln!("vexa-daemon: {error}");
+            supervisor.shutdown();
+            return Err("the native stack did not start".to_owned());
+        }
+    }
+    supervisor.shutdown();
+    println!("vexa-daemon: stopped");
     Ok(())
 }
 
