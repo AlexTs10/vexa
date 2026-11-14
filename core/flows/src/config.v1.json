@@ -794,6 +794,20 @@
         "compose",
         "helm"
       ]
+    },
+    {
+      "key": "VEXA_FLOWS_LEGACY_URL",
+      "class": "defaulted",
+      "description": "The legacy flows-api the desktop parity one-shot (flows_parity.py) compares against. Default `http://flows-api:8200`, the Compose service; read only by the parity check, never by the running service.",
+      "default": "http://flows-api:8200",
+      "targets": []
+    },
+    {
+      "key": "VEXA_FLOWS_SHADOW_URL",
+      "class": "defaulted",
+      "description": "The combined flows process in shadow mode that the desktop parity one-shot (flows_parity.py) compares. Default `http://flows-combined-shadow:8200`, the Compose parity service; read only by the parity check.",
+      "default": "http://flows-combined-shadow:8200",
+      "targets": []
     }
   ],
   "capabilities": {
