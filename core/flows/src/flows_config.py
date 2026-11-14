@@ -361,6 +361,14 @@ DECLARED: dict[str, tuple[str, object, str]] = {
         "the global CEILING over a person's attention budget: deliveries outside the Inbox per "
         "local day (D32). The person's rule sets the cap below it; the floor is 1."),
     "VEXA_TIMELINE_SCAN_ROWS": ("defaulted", "2000", "how many reaction rows the timeline projection scans."),
+    "VEXA_FLOWS_LEGACY_URL": (
+        "defaulted", "http://flows-api:8200",
+        "the legacy flows-api the desktop parity one-shot (flows_parity.py) compares against; read "
+        "only by that check, never by the running service."),
+    "VEXA_FLOWS_SHADOW_URL": (
+        "defaulted", "http://flows-combined-shadow:8200",
+        "the combined flows process in shadow mode that the desktop parity one-shot "
+        "(flows_parity.py) compares; read only by that check."),
 }
 
 

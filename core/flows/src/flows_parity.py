@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from urllib.request import urlopen
+
+import flows_config as cfg
 
 
 PATHS = ("/health", "/.well-known/mcp-tools.json")
@@ -28,8 +29,8 @@ def compare(old_url: str, new_url: str) -> list[str]:
 
 
 def main() -> int:
-    old_url = os.environ.get("VEXA_FLOWS_LEGACY_URL", "http://flows-api:8200")
-    new_url = os.environ.get("VEXA_FLOWS_SHADOW_URL", "http://flows-combined-shadow:8200")
+    old_url = cfg.get("VEXA_FLOWS_LEGACY_URL")
+    new_url = cfg.get("VEXA_FLOWS_SHADOW_URL")
     failures = compare(old_url, new_url)
     if failures:
         print(f"flows parity failed: {', '.join(failures)}", file=sys.stderr)
