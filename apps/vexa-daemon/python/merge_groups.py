@@ -25,11 +25,14 @@ REPO = HERE.parents[2]
 
 #: group -> [(member project, dependency groups its Dockerfile installs)]
 GROUPS = {
-    "edge": [
+    "core": [
         ("core/identity/services/admin-api", ["production"]),
         ("core/meetings/services/meeting-api", ["production"]),
         ("core/gateway/services/gateway", ["production"]),
         ("core/gateway/services/mcp", ["production"]),
+        ("core/agent/services/credential-broker", []),
+        ("core/crm", []),
+        ("core/flows", []),
     ],
 }
 

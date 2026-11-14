@@ -4,12 +4,14 @@ Each service keeps its own app builder, routes, lifespan and port. The
 services share one interpreter and one event loop, so their common libraries
 load once. This lowers the memory of the native Mac stack.
 
-    python native_group.py edge    # admin-api, meeting-api, gateway (+ door), mcp
+    python native_group.py core    # admin-api, meeting-api, gateway (+ door), mcp,
+                                   # credential-broker, crm, flows (+ worker)
     python native_group.py agent   # agent-api, model-proxy
 
 Ports come from ``VEXA_<SERVICE>_PORT``. All listeners use 127.0.0.1.
-mcp asks every domain for its tools when it is built, so the edge group
+mcp asks every domain for its tools when it is built, so the core group
 builds it last, after each URL in ``VEXA_NATIVE_MCP_WAIT_URLS`` answers 200.
+The flows worker loop runs on its own thread in the core group.
 
 The process stops all listeners on SIGINT or SIGTERM, and exits with code 1
 when one listener stops by itself, so the daemon restarts the whole group.
@@ -22,6 +24,7 @@ import logging
 import os
 import signal
 import sys
+import threading
 import urllib.request
 from typing import Any, Callable, Coroutine
 
@@ -51,10 +54,10 @@ def listener(app, port_number: int) -> Listener:
     return Listener(uvicorn.Config(app, host=HOST, port=port_number, log_level=level))
 
 
-# ─── edge ──────────────────────────────────────────────────────────────────
+# ─── gateway side ──────────────────────────────────────────────────────────────────
 
 
-def edge_now() -> list[tuple[str, Listener]]:
+def gateway_side_now() -> list[tuple[str, Listener]]:
     from admin_api.__main__ import build_production_app as admin_app
     from gateway.adapters import build_production_app as gateway_app
     from gateway.adapters import load_signing_key
@@ -78,7 +81,7 @@ def _answers(url: str) -> bool:
         return False
 
 
-async def edge_later() -> list[tuple[str, Listener]]:
+async def mcp_later() -> list[tuple[str, Listener]]:
     urls = [u for u in os.getenv("VEXA_NATIVE_MCP_WAIT_URLS", "").split(",") if u]
     loop = asyncio.get_running_loop()
     while True:
@@ -120,9 +123,61 @@ def agent_now() -> list[tuple[str, Listener]]:
 async def nothing_later() -> list[tuple[str, Listener]]:
     return []
 
+# ─── core ──────────────────────────────────────────────────────────────────
+
+
+def broker_now() -> list[tuple[str, Listener]]:
+    # build_app sets umask 077 for the whole process: every file the group writes is private.
+    from credential_broker.main import build_app
+
+    return [("credential-broker", listener(build_app(), port("CREDENTIAL_BROKER")))]
+
+
+def crm_now() -> list[tuple[str, Listener]]:
+    from crm.api import configured_app
+    from crm.config_preflight import preflight
+
+    preflight()
+    return [("crm", listener(configured_app(), port("CRM")))]
+
+
+def flows_now() -> list[tuple[str, Listener]]:
+    from flows_integrations import flows_api
+
+    flows_api.boot()
+    return [("flows", listener(flows_api.app, int(os.environ["VEXA_FLOWS_API_PORT"])))]
+
+
+def core_now() -> list[tuple[str, Listener]]:
+    return broker_now() + gateway_side_now() + crm_now() + flows_now()
+
+
+def flows_worker() -> asyncio.Future:
+    """The flows worker loop on a daemon thread; the future ends when the loop ends."""
+    from flows_worker import __main__ as worker
+
+    loop = asyncio.get_running_loop()
+    ended: asyncio.Future = loop.create_future()
+
+    def run() -> None:
+        try:
+            code = worker.main()
+            error = RuntimeError(f"flows worker returned {code}")
+        except BaseException as exc:  # noqa: BLE001 -- the group reports any end of the loop
+            error = exc
+        loop.call_soon_threadsafe(lambda: ended.done() or ended.set_exception(error))
+
+    threading.Thread(target=run, name="flows-worker", daemon=True).start()
+    return ended
+
+
+WORKERS: dict[str, Callable[[], list]] = {
+    "core": lambda: [("flows-worker", flows_worker())],
+}
+
 
 GROUPS: dict[str, tuple[Callable[[], list], Callable[[], Coroutine[Any, Any, list]]]] = {
-    "edge": (edge_now, edge_later),
+    "core": (core_now, mcp_later),
     "agent": (agent_now, nothing_later),
 }
 
@@ -144,11 +199,12 @@ async def run(group: str) -> int:
             log.info("%s listens on %s:%s", name, HOST, server.config.port)
 
     start(build_now())
+    workers = {future: name for name, future in (WORKERS.get(group, lambda: [])())}
     later = asyncio.create_task(build_later(), name="later")
     stopper = asyncio.create_task(stop.wait(), name="stop")
     code = 0
     while True:
-        done, _ = await asyncio.wait([*tasks, later, stopper], return_when=asyncio.FIRST_COMPLETED)
+        done, _ = await asyncio.wait([*tasks, *workers, later, stopper], return_when=asyncio.FIRST_COMPLETED)
         if stopper in done:
             break
         if later in done:
@@ -159,7 +215,10 @@ async def run(group: str) -> int:
             start(later.result())
             later = asyncio.create_task(asyncio.Event().wait(), name="idle")
             continue
-        ended = [tasks[t] for t in done if t in tasks]
+        ended = [tasks.get(t) or workers.get(t) for t in done if t in tasks or t in workers]
+        for future in done:
+            if future in workers and future.exception() is not None:
+                log.error("%s: %r", workers[future], future.exception())
         log.error("%s stopped by itself; stopping the %s group", ", ".join(ended), group)
         code = 1
         break

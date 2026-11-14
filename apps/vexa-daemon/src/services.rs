@@ -97,12 +97,12 @@ pub const FLOWS: PyApp = PyApp {
     workdir: "app/src",
 };
 
-/// The merged environment of the edge process group (merge_groups.py).
-pub const EDGE_ENV: PyApp = PyApp {
-    name: "group-edge",
-    context: "apps/vexa-daemon/python/groups/edge",
+/// The merged environment of the core process group (merge_groups.py).
+pub const CORE_ENV: PyApp = PyApp {
+    name: "group-core",
+    context: "apps/vexa-daemon/python/groups/core",
     dockerfile: "",
-    project: "apps/vexa-daemon/python/groups/edge",
+    project: "apps/vexa-daemon/python/groups/core",
     sync: NO_DEV,
     pythonpath: "",
     workdir: "",
@@ -853,36 +853,58 @@ impl Stack {
         self.source.join("apps/vexa-daemon/python/native_group.py").display().to_string()
     }
 
-    /// The edge process group: admin-api, meeting-api, gateway (and its
-    /// service door) and mcp in one interpreter.
-    pub fn edge_group(&self) -> Result<Spec, String> {
+    /// The core process group: admin-api, meeting-api, gateway and its door,
+    /// mcp, credential-broker, crm, and flows with its worker, in one
+    /// interpreter (native_group.py). agent-api is not a member: it needs other
+    /// values than meeting-api for VEXA_FLOWS_API_URL and
+    /// VEXA_SUBJECT_TICKET_KEY_FILE, and one process has one environment.
+    /// The member specs of the core group, as each service runs alone.
+    pub fn core_members(&self) -> Vec<Spec> {
+        vec![
+            self.credential_broker(),
+            self.admin_api(),
+            self.meeting_api(),
+            self.gateway(),
+            self.mcp(),
+            self.crm(),
+            self.flows(),
+        ]
+    }
+
+    pub fn core_group(&self) -> Result<Spec, String> {
         let runtime = self.layout.runtime();
-        let members = [self.admin_api(), self.meeting_api(), self.gateway(), self.mcp()];
-        let pythonpath = [&ADMIN, &MEETING, &GATEWAY, &MCP]
+        let members = self.core_members();
+        let apps = [&BROKER, &ADMIN, &MEETING, &GATEWAY, &MCP, &CRM, &FLOWS];
+        let pythonpath = apps
             .iter()
             .map(|app| app.root(&runtime).join(app.pythonpath).display().to_string())
             .collect::<Vec<_>>()
             .join(":");
-        let gateway_port = self.env.port("VEXA_GATEWAY_PORT");
-        let base = Spec::new("edge", EDGE_ENV.venv(&runtime).join("bin/python"), Ready::Http(gateway_port, "/health".into()))
-            .args([self.group_runner(), "edge".to_owned()])
+        let mut base = Spec::new("core", CORE_ENV.venv(&runtime).join("bin/python"), Ready::Http(self.env.port("VEXA_GATEWAY_PORT"), "/health".into()))
+            .args([self.group_runner(), "core".to_owned()])
             .cwd(GATEWAY.root(&runtime).join(GATEWAY.workdir))
-            .env("PATH", format!("{}:{}", EDGE_ENV.venv(&runtime).join("bin").display(), self.tools.path))
+            .env("PATH", format!("{}:{}", CORE_ENV.venv(&runtime).join("bin").display(), self.tools.path))
             .env("PYTHONPATH", pythonpath)
-            .env("VEXA_ADMIN_API_PORT", self.env.get("VEXA_ADMIN_API_PORT"))
-            .env("VEXA_MEETING_API_PORT", self.env.get("VEXA_MEETING_API_PORT"))
-            .env("VEXA_GATEWAY_PORT", gateway_port.to_string())
-            .env("VEXA_MCP_PORT", self.env.get("VEXA_MCP_PORT"))
+            .env("VEXA_FLOWS_API_PORT", self.env.get("VEXA_FLOWS_PORT"))
             .env(
                 "VEXA_NATIVE_MCP_WAIT_URLS",
-                [
-                    format!("{}/health", self.p("VEXA_AGENT_API_PORT")),
-                    format!("{}/health", self.p("VEXA_FLOWS_PORT")),
-                    format!("{}/health", self.p("VEXA_CRM_PORT")),
-                ]
-                .join(","),
+                ["VEXA_AGENT_API_PORT", "VEXA_FLOWS_PORT", "VEXA_CRM_PORT"]
+                    .iter()
+                    .map(|key| format!("{}/health", self.p(key)))
+                    .collect::<Vec<_>>()
+                    .join(","),
             )
-            .timeout(Duration::from_secs(120));
+            .timeout(Duration::from_secs(180));
+        for key in [
+            "VEXA_ADMIN_API_PORT",
+            "VEXA_MEETING_API_PORT",
+            "VEXA_GATEWAY_PORT",
+            "VEXA_MCP_PORT",
+            "VEXA_CREDENTIAL_BROKER_PORT",
+            "VEXA_CRM_PORT",
+        ] {
+            base = base.env(key, self.env.get(key));
+        }
         merge_specs(base, &members)
     }
 
@@ -997,19 +1019,16 @@ impl Stack {
             return self.start_services_split(supervisor);
         }
         self.prepare_python()?;
-        EDGE_ENV.prepare_env(&self.source, &self.layout.runtime(), &self.tools.uv, &self.tools.path)?;
+        CORE_ENV.prepare_env(&self.source, &self.layout.runtime(), &self.tools.uv, &self.tools.path)?;
         for job in self.key_jobs() {
             supervisor.start(job)?;
         }
         for job in self.schema_jobs() {
             supervisor.start(job)?;
         }
-        supervisor.start(self.credential_broker())?;
         supervisor.start(self.runtime())?;
-        supervisor.start(self.edge_group()?)?;
+        supervisor.start(self.core_group()?)?;
         supervisor.start(self.agent_group()?)?;
-        supervisor.start(self.crm())?;
-        supervisor.start(self.flows())?;
         supervisor.await_ready(
             "mcp",
             &Ready::Http(self.env.port("VEXA_MCP_PORT"), "/health".into()),

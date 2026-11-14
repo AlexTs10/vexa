@@ -288,8 +288,44 @@ fn serve() -> Result<(), String> {
     Ok(())
 }
 
+/// Print the environment of each core group member as JSON lines
+/// (`{"name": ..., "env": {...}}`), to check what one shared process sees.
+fn specs() -> Result<(), String> {
+    let layout = stack::Layout::new(app_support_dir());
+    let stack = stack::Stack {
+        env: config::load_or_create(&layout.config())?,
+        tools: stack::Tools::discover()?,
+        source: stack::source_dir()?,
+        layout,
+    };
+    for spec in stack.core_members() {
+        let env = spec
+            .env
+            .iter()
+            .map(|(k, v)| format!("{}:{}", json_string(k), json_string(v)))
+            .collect::<Vec<_>>()
+            .join(",");
+        println!("{{\"name\":{},\"env\":{{{env}}}}}", json_string(&spec.name));
+    }
+    Ok(())
+}
+
+fn json_string(text: &str) -> String {
+    let mut out = String::from("\"");
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
 fn usage() {
-    eprintln!("Usage: vexa-daemon <init|store-init|status|serve>");
+    eprintln!("Usage: vexa-daemon <init|store-init|status|serve|specs>");
 }
 
 fn main() {
@@ -301,6 +337,7 @@ fn main() {
             Ok(())
         }
         Some("serve") => serve(),
+        Some("specs") => specs(),
         _ => {
             usage();
             Err("missing or invalid command".to_string())

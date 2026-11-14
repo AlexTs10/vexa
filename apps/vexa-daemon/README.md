@@ -50,23 +50,32 @@ keep a reversible export path.
 | `ui` | the Next.js terminal (`node server.mjs`, built with `pnpm --filter @vexa/terminal run build`) on 127.0.0.1:23000 | `terminal` |
 | `services` | key jobs, schema jobs, admin-api, credential-broker, runtime (`process` backend), model-proxy, meeting-api, agent-api, crm (with outbox), gateway (with service door), flows (API and worker), mcp | the same services, with the desktop Flows and CRM overlays |
 
-By default related services share one Python process
-(`python/native_group.py`): the **edge** group runs admin-api, meeting-api,
-gateway with its service door, and mcp; the **agent** group runs agent-api and
-model-proxy. mcp starts last in the edge process, after agent-api, flows and
-crm answer `/health`, because it assembles their tools when it is built. The
-runtime (it forks children) and the credential-broker (it sets a process-wide
-umask) keep their own processes. A group gets the union of its members'
-settings; two members that need different values for one setting stop the
-start with an error. The edge environment is `python/groups/edge`, made by
-`python/merge_groups.py` from the members' requirements and limited to the
-highest version each member's own lock uses. `VEXA_NATIVE_SPLIT=1` runs one
-process per service.
+By default the Python services share two processes
+(`python/native_group.py`):
+
+- **core**: admin-api, meeting-api, gateway with its service door, mcp,
+  credential-broker, crm (with its outbox) and flows (API, with the worker loop
+  on its own thread). mcp starts last, after agent-api, flows and crm answer
+  `/health`, because it assembles their tools when it is built.
+- **agent**: agent-api and model-proxy.
+
+agent-api is not in core: it needs other values than meeting-api for
+`VEXA_FLOWS_API_URL` and `VEXA_SUBJECT_TICKET_KEY_FILE`, and one process has one
+environment. The runtime keeps its own process (it forks the bots and
+workers). A group gets the union of its members' settings; two members that
+need different values for one setting stop the start with an error. The core
+environment is `python/groups/core`, made by `python/merge_groups.py` from the
+members' requirements and limited to the highest version each member's own
+lock uses. `VEXA_NATIVE_SPLIT=1` runs one process per service.
 
 In a group, every member can read the group's settings. For example gateway
 and mcp code can read the database password that admin-api and meeting-api
 use. This is acceptable for a single-user local app; the Compose layout keeps
-the per-service separation.
+the per-service separation. credential-broker sets umask 077, so every file
+the core process writes is private to the Mac user. `vexa-daemon specs` prints
+each core member's own settings; `python/group_env_check.py` reads that output
+and lists each setting that one member sets and another member's code names,
+for review.
 
 ### Meeting bots and agent workers
 
@@ -113,7 +122,8 @@ same layout as its image (`/app`), built from the `COPY` lines of its
 Dockerfile. Its environment is `runtime/venvs/<name>`, made by `uv sync`
 with the Dockerfile's arguments. A source change needs only a restart.
 `python/native_launch.py` runs crm-api and model-proxy on loopback and a
-given port; their image entry points use fixed ports on all interfaces.
+given port when each service runs alone (`VEXA_NATIVE_SPLIT=1`); their image
+entry points use fixed ports on all interfaces.
 
 The daemon starts each process, waits until it is ready, restarts it after a
 crash (backoff 1–32 s), and stops all processes in reverse order on SIGINT or
@@ -129,7 +139,7 @@ BSD-licensed `redis-server` 7.2, `versitygw`, and `uv`. Override a path with
 `VEXA_PG_BIN_DIR`, `VEXA_REDIS_SERVER`, `VEXA_VERSITYGW` or `VEXA_UV`.
 `VEXA_SOURCE_DIR` points at the Vexa checkout.
 
-Measured on 2026-11-13 (Apple M3, `scripts/desktop-memory.py`):
+Measured on 2026-11-13 and 2026-11-14 (Apple M3, `scripts/desktop-memory.py`):
 
 | Layout | Host footprint |
 |---|---|
@@ -139,9 +149,10 @@ Measured on 2026-11-13 (Apple M3, `scripts/desktop-memory.py`):
 | `infra,services`, process groups (default), transcription model unloaded | 611.5 MiB |
 | the same, transcription model loaded (`whisper-server`, 488 MiB) | 1101.5 MiB |
 | `infra,services,ui` (adds the terminal, 136 MiB), model loaded | 1225.6 MiB |
+| the same, with the core group (2026-11-14) | 1088.8 MiB |
 
 A new instance shows the terminal's claim screen. The one-time admin claim
-code is in `logs/edge.log` (`grep -A4 'ADMIN CLAIM CODE'`).
+code is in `logs/core.log` (`grep -A4 'ADMIN CLAIM CODE'`).
 
 Checked through the native gateway: a token minted by admin-api resolves at
 `/auth/me`, `/meetings` answers 200, and MCP `tools/list` returns 171 tools
