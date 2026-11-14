@@ -18,8 +18,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "vexa-native-kit"
+version = "0.1.0"
+
+[[package]]
 name = "vexa-stt"
 version = "0.1.0"
 dependencies = [
  "miniz_oxide",
+ "vexa-native-kit",
 ]

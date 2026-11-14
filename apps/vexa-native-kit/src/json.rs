@@ -1,4 +1,8 @@
-//! A small JSON value with a parser and a writer (no external crates).
+//! A small JSON value with a parser and writers (no external crates).
+//!
+//! Objects keep their key order. `write` keeps it; `canonical` sorts keys at
+//! every level, the form Python writes with
+//! `json.dumps(v, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`.
 
 use std::collections::BTreeMap;
 
@@ -37,6 +41,61 @@ impl Value {
             _ => None,
         }
     }
+    pub fn as_object(&self) -> Option<&[(String, Value)]> {
+        match self {
+            Value::Object(items) => Some(items),
+            _ => None,
+        }
+    }
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Value::Bool(b) => Some(*b),
+            _ => None,
+        }
+    }
+    /// A number that is a whole value (JSON `3`, also `3.0`).
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            Value::Number(n) if n.fract() == 0.0 && n.abs() < 9.0e15 => Some(*n as i64),
+            _ => None,
+        }
+    }
+    pub fn is_null(&self) -> bool {
+        matches!(self, Value::Null)
+    }
+    /// Set `key` in an object: replace its value, or append it.
+    pub fn set(&mut self, key: &str, value: Value) {
+        if let Value::Object(items) = self {
+            match items.iter_mut().find(|(k, _)| k == key) {
+                Some(slot) => slot.1 = value,
+                None => items.push((key.to_owned(), value)),
+            }
+        }
+    }
+}
+
+impl From<&str> for Value {
+    fn from(text: &str) -> Self {
+        Value::String(text.to_owned())
+    }
+}
+
+impl From<String> for Value {
+    fn from(text: String) -> Self {
+        Value::String(text)
+    }
+}
+
+impl From<i64> for Value {
+    fn from(n: i64) -> Self {
+        Value::Number(n as f64)
+    }
+}
+
+impl From<bool> for Value {
+    fn from(b: bool) -> Self {
+        Value::Bool(b)
+    }
 }
 
 pub fn quote(text: &str) -> String {
@@ -49,6 +108,8 @@ pub fn quote(text: &str) -> String {
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
             c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
             c => out.push(c),
         }
@@ -79,6 +140,27 @@ pub fn write(value: &Value) -> String {
                 .collect::<Vec<_>>()
                 .join(",")
         ),
+    }
+}
+
+/// The canonical form: keys sorted at every level (by code point, as
+/// Python sorts `str` keys), no spaces.
+pub fn canonical(value: &Value) -> String {
+    match value {
+        Value::Array(items) => format!("[{}]", items.iter().map(canonical).collect::<Vec<_>>().join(",")),
+        Value::Object(items) => {
+            let mut sorted: Vec<&(String, Value)> = items.iter().collect();
+            sorted.sort_by(|a, b| a.0.chars().cmp(b.0.chars()));
+            format!(
+                "{{{}}}",
+                sorted
+                    .iter()
+                    .map(|(k, v)| format!("{}:{}", quote(k), canonical(v)))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
+        }
+        other => write(other),
     }
 }
 
@@ -255,5 +337,11 @@ mod tests {
         assert_eq!(seg.get("end").unwrap().as_f64().unwrap(), 3.11);
         let out = write(&value);
         assert_eq!(parse(&out).unwrap(), value);
+    }
+
+    #[test]
+    fn canonical_sorts_keys_and_escapes_like_python() {
+        let value = parse(r#"{"b":{"z":1,"a":[true,null]},"a":"x\u0008y\u000cz\u0001é"}"#).unwrap();
+        assert_eq!(canonical(&value), "{\"a\":\"x\\by\\fz\\u0001é\",\"b\":{\"a\":[true,null],\"z\":1}}");
     }
 }

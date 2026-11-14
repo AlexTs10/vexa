@@ -11,3 +11,4 @@ path = "src/main.rs"
 
 [dependencies]
 libc = "0.2"
+vexa-native-kit = { path = "../vexa-native-kit" }

@@ -5,6 +5,7 @@
 //! Compose default (`pass`). Service addresses point at 127.0.0.1 and the
 //! native ports; key and state volumes become folders below the Vexa folder.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -20,15 +21,6 @@ pub const ADMIN: PyApp = PyApp {
     context: "core/identity/services/admin-api",
     dockerfile: "core/identity/services/admin-api/Dockerfile",
     project: "core/identity/services/admin-api",
-    sync: PROD,
-    pythonpath: "app/src",
-    workdir: "app",
-};
-pub const RUNTIME: PyApp = PyApp {
-    name: "runtime",
-    context: "core/runtime",
-    dockerfile: "core/runtime/Dockerfile",
-    project: "core/runtime",
     sync: PROD,
     pythonpath: "app/src",
     workdir: "app",
@@ -97,6 +89,24 @@ pub const FLOWS: PyApp = PyApp {
     workdir: "app/src",
 };
 
+/// The meeting-bot profile's deployment-wide floor (`profiles.default_registry`).
+const BOT_TUNING_ENV: [&str; 14] = [
+    "BOT_ALONE_SILENCE_WINDOW_MS",
+    "BOT_SPEAKER_MIN_AUDIO_SEC",
+    "BOT_SPEAKER_SUBMIT_INTERVAL_SEC",
+    "BOT_SPEAKER_CONFIRM_THRESHOLD",
+    "BOT_SPEAKER_MAX_BUFFER_SEC",
+    "BOT_SPEAKER_IDLE_TIMEOUT_SEC",
+    "BOT_SPEAKER_MIN_FINAL_AUDIO_SEC",
+    "BOT_STT_TIMEOUT_SEC",
+    "BOT_TRANSCRIPTION_LATENCY",
+    "BOT_STT_CONFIDENCE_FILTER",
+    "BOT_TRANSCRIPT_RECONFIRM_SEC",
+    "VEXA_GOOGLE_JOIN_MAX_KNOCKS",
+    "VEXA_GOOGLE_REKNOCK_BACKOFF_MS",
+    "VEXA_GOOGLE_REKNOCK_WIPE",
+];
+
 /// The merged environment of the core process group (merge_groups.py).
 pub const CORE_ENV: PyApp = PyApp {
     name: "group-core",
@@ -119,7 +129,7 @@ pub const WORKER: PyApp = PyApp {
     workdir: "app",
 };
 
-pub const ALL: [&PyApp; 10] = [&ADMIN, &RUNTIME, &MEETING, &AGENT, &GATEWAY, &MCP, &BROKER, &CRM, &FLOWS, &WORKER];
+pub const ALL: [&PyApp; 9] = [&ADMIN, &MEETING, &AGENT, &GATEWAY, &MCP, &BROKER, &CRM, &FLOWS, &WORKER];
 
 /// The npm packages the worker image installs globally (`npm install -g ...`).
 pub fn worker_cli_packages(dockerfile: &str) -> Vec<String> {
@@ -399,7 +409,9 @@ impl Stack {
         )
     }
 
-    pub fn runtime(&self) -> Spec {
+    /// The runtime (runtime.v1 and schedule.v1) that runs inside the daemon
+    /// (`crate::runtime`), with the settings the Python runtime had.
+    pub fn runtime_config(&self) -> crate::runtime::Config {
         let port = self.env.port("VEXA_RUNTIME_PORT");
         let runtime_dir = self.layout.runtime();
         let workspaces = self.workspaces_dir();
@@ -407,7 +419,7 @@ impl Stack {
         let logs = self.layout.logs().join("workloads");
         let _ = std::fs::create_dir_all(&logs);
         let launchers = self.source.join("apps/vexa-daemon/bin");
-        let spec = self.module("runtime", &RUNTIME, "runtime_kernel", Ready::Http(port, "/health".into()))
+        let spec = Spec::new("runtime", "", Ready::Tcp(port))
             .env("HOST", "127.0.0.1")
             .env("PORT", port.to_string())
             .env("RUNTIME_BACKEND", "process")
@@ -416,15 +428,13 @@ impl Stack {
             .env("PROCESS_LOG_DIR", logs.display().to_string())
             .env("BROWSER_IMAGE", "native-process")
             .env("AGENT_IMAGE", "native-process")
-            .env("BOT_COMMAND", launchers.join("vexa-bot-launch").display().to_string())
-            .env("AGENT_WORKER_COMMAND", launchers.join("vexa-agent-worker").display().to_string())
             .env("VEXA_WORKSPACE_MOUNT_TARGET", workspaces.display().to_string())
             // Host plumbing the process backend passes to each bot (workload_env.PROCESS_PLUMBING_ENV).
             .env("PLAYWRIGHT_BROWSERS_PATH", runtime_dir.join("ms-playwright").display().to_string())
             .env("VEXA_HF_CACHE", runtime_dir.join("hf-cache").display().to_string())
             .env("VEXA_NATIVE_SOURCE_DIR", self.source.display().to_string())
             .env("VEXA_NATIVE_RUNTIME_DIR", runtime_dir.display().to_string());
-        self.pass(
+        let spec = self.pass(
             spec,
             &[
                 ("BOT_ALONE_SILENCE_WINDOW_MS", ""),
@@ -446,7 +456,48 @@ impl Stack {
                 ("HOST_CODEX_CREDENTIALS", ""),
                 ("VEXA_MIDTURN_INJECT", ""),
             ],
-        )
+        );
+        // What a child may inherit: the daemon's plumbing, then the runtime's settings.
+        let mut env: BTreeMap<String, String> = ["HOME", "LANG", "LC_ALL", "TMPDIR", "USER"]
+            .iter()
+            .filter_map(|k| std::env::var(k).ok().map(|v| (k.to_string(), v)))
+            .collect();
+        env.insert("PATH".into(), self.tools.path.clone());
+        env.insert("TZ".into(), "UTC".into());
+        env.insert("PYTHONUNBUFFERED".into(), "1".into());
+        env.extend(spec.env);
+        let bot_tuning = BOT_TUNING_ENV
+            .iter()
+            .filter_map(|k| env.get(*k).filter(|v| !v.trim().is_empty()).map(|v| (k.to_string(), v.clone())))
+            .collect();
+        let profiles = vec![
+            crate::runtime::kernel::Profile {
+                name: "meeting-bot".into(),
+                command: vec![launchers.join("vexa-bot-launch").display().to_string()],
+                base_env: bot_tuning,
+                forward_env: Vec::new(),
+            },
+            crate::runtime::kernel::Profile {
+                name: "agent".into(),
+                command: vec![launchers.join("vexa-agent-worker").display().to_string()],
+                base_env: BTreeMap::new(),
+                forward_env: crate::runtime::workload_env::WORKER_FORWARD_ENV.to_vec(),
+            },
+        ];
+        crate::runtime::Config {
+            port,
+            env,
+            profiles,
+            declaration: self.source.join("core/runtime/src/runtime_kernel/config.v1.json"),
+            log_file: self.layout.logs().join("runtime.log"),
+        }
+    }
+
+    /// Start the runtime; it is ready when this returns.
+    pub fn start_runtime(&self) -> Result<crate::runtime::Handle, String> {
+        let handle = crate::runtime::start(self.runtime_config())?;
+        println!("vexa-daemon: runtime is ready (in the daemon, port {})", self.env.port("VEXA_RUNTIME_PORT"));
+        Ok(handle)
     }
 
     pub fn agent_api(&self) -> Spec {
@@ -1014,7 +1065,7 @@ impl Stack {
     /// Start the application services in Compose dependency order. By
     /// default related services share a process (`native_group.py`);
     /// `VEXA_NATIVE_SPLIT=1` runs one process per service for diagnosis.
-    pub fn start_services(&self, supervisor: &mut Supervisor) -> Result<(), String> {
+    pub fn start_services(&self, supervisor: &mut Supervisor) -> Result<crate::runtime::Handle, String> {
         if std::env::var("VEXA_NATIVE_SPLIT").as_deref() == Ok("1") {
             return self.start_services_split(supervisor);
         }
@@ -1026,7 +1077,7 @@ impl Stack {
         for job in self.schema_jobs() {
             supervisor.start(job)?;
         }
-        supervisor.start(self.runtime())?;
+        let runtime = self.start_runtime()?;
         supervisor.start(self.core_group()?)?;
         supervisor.start(self.agent_group()?)?;
         supervisor.await_ready(
@@ -1034,10 +1085,10 @@ impl Stack {
             &Ready::Http(self.env.port("VEXA_MCP_PORT"), "/health".into()),
             Duration::from_secs(180),
         )?;
-        Ok(())
+        Ok(runtime)
     }
 
-    fn start_services_split(&self, supervisor: &mut Supervisor) -> Result<(), String> {
+    fn start_services_split(&self, supervisor: &mut Supervisor) -> Result<crate::runtime::Handle, String> {
         self.prepare_python()?;
         for job in self.key_jobs() {
             supervisor.start(job)?;
@@ -1047,7 +1098,7 @@ impl Stack {
         }
         supervisor.start(self.admin_api())?;
         supervisor.start(self.credential_broker())?;
-        supervisor.start(self.runtime())?;
+        let runtime = self.start_runtime()?;
         supervisor.start(self.model_proxy())?;
         supervisor.start(self.meeting_api())?;
         supervisor.start(self.agent_api())?;
@@ -1055,7 +1106,7 @@ impl Stack {
         supervisor.start(self.gateway())?;
         supervisor.start(self.flows())?;
         supervisor.start(self.mcp())?;
-        Ok(())
+        Ok(runtime)
     }
 }
 

@@ -1,5 +1,6 @@
 mod config;
 mod pyapp;
+mod runtime;
 mod services;
 mod stack;
 mod supervisor;
@@ -253,6 +254,7 @@ fn serve() -> Result<(), String> {
     let layout = stack::Layout::new(app_support_dir());
     layout.create()?;
     let mut supervisor = supervisor::Supervisor::new(layout.logs(), shared_status());
+    let mut runtime: Option<runtime::Handle> = None;
     let result = (|| -> Result<(), String> {
         if groups.is_empty() {
             return Ok(());
@@ -266,7 +268,7 @@ fn serve() -> Result<(), String> {
         for group in &groups {
             match group.as_str() {
                 "infra" => stack.start_infra(&mut supervisor)?,
-                "services" => stack.start_services(&mut supervisor)?,
+                "services" => runtime = Some(stack.start_services(&mut supervisor)?),
                 "ui" => supervisor.start(stack.terminal()?)?,
                 other => return Err(format!("unknown native group `{other}`")),
             }
@@ -274,15 +276,23 @@ fn serve() -> Result<(), String> {
         println!("vexa-daemon: native stack is ready ({})", groups.join(", "));
         Ok(())
     })();
+    // Workloads stop first, while meeting-api and agent-api still take their callbacks.
+    let stop_workloads = |runtime: &Option<runtime::Handle>| {
+        if let Some(handle) = runtime {
+            handle.shutdown(Duration::from_secs(15));
+        }
+    };
     match result {
         Ok(()) => supervisor.watch(),
         Err(error) if supervisor::stop_requested() => eprintln!("vexa-daemon: {error}"),
         Err(error) => {
             eprintln!("vexa-daemon: {error}");
+            stop_workloads(&runtime);
             supervisor.shutdown();
             return Err("the native stack did not start".to_owned());
         }
     }
+    stop_workloads(&runtime);
     supervisor.shutdown();
     println!("vexa-daemon: stopped");
     Ok(())

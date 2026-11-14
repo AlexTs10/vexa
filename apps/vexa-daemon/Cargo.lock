@@ -13,4 +13,9 @@ name = "vexa-daemon"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "vexa-native-kit",
 ]
+
+[[package]]
+name = "vexa-native-kit"
+version = "0.1.0"

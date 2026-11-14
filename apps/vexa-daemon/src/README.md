@@ -6,3 +6,4 @@
 - `stack.rs`: the folders, host tools and the `infra` group (PostgreSQL, Redis, storage, stt).
 - `pyapp.rs`: Python services in their image layout (symlink trees from Dockerfile `COPY` lines) and locked environments.
 - `services.rs`: the application services, process groups, key and schema jobs, and the terminal.
+- `runtime/`: the runtime inside the daemon (runtime.v1 and schedule.v1, process backend).

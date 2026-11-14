@@ -10,5 +10,6 @@ name = "vexa-stt"
 path = "src/main.rs"
 
 [dependencies]
+vexa-native-kit = { path = "../vexa-native-kit" }
 # MIT OR Zlib OR Apache-2.0: zlib compression for the segment compression ratio.
 miniz_oxide = "0.8"

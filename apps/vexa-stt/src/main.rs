@@ -8,8 +8,6 @@
 
 mod convert;
 mod engine;
-mod http;
-mod json;
 mod multipart;
 
 use std::env;
@@ -20,6 +18,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use engine::{Config, Engine, EngineError};
+use vexa_native_kit::{http, json};
 use http::{Request, Response};
 use json::{object, Value};
 

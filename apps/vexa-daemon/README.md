@@ -48,7 +48,7 @@ keep a reversible export path.
 |---|---|---|
 | `infra` | PostgreSQL 17, Valkey/Redis 7.2, versitygw, storage-init, vexa-stt | `postgres`, `redis`, `storage`, `storage-init`, the `transcription` stack |
 | `ui` | the Next.js terminal (`node server.mjs`, built with `pnpm --filter @vexa/terminal run build`) on 127.0.0.1:23000 | `terminal` |
-| `services` | key jobs, schema jobs, admin-api, credential-broker, runtime (`process` backend), model-proxy, meeting-api, agent-api, crm (with outbox), gateway (with service door), flows (API and worker), mcp | the same services, with the desktop Flows and CRM overlays |
+| `services` | key jobs, schema jobs, the runtime (in the daemon), admin-api, credential-broker, model-proxy, meeting-api, agent-api, crm (with outbox), gateway (with service door), flows (API and worker), mcp | the same services, with the desktop Flows and CRM overlays |
 
 By default the Python services share two processes
 (`python/native_group.py`):
@@ -61,8 +61,7 @@ By default the Python services share two processes
 
 agent-api is not in core: it needs other values than meeting-api for
 `VEXA_FLOWS_API_URL` and `VEXA_SUBJECT_TICKET_KEY_FILE`, and one process has one
-environment. The runtime keeps its own process (it forks the bots and
-workers). A group gets the union of its members' settings; two members that
+environment. A group gets the union of its members' settings; two members that
 need different values for one setting stop the start with an error. The core
 environment is `python/groups/core`, made by `python/merge_groups.py` from the
 members' requirements and limited to the highest version each member's own
@@ -77,10 +76,40 @@ each core member's own settings; `python/group_env_check.py` reads that output
 and lists each setting that one member sets and another member's code names,
 for review.
 
+### The runtime
+
+The daemon serves the runtime itself (`src/runtime`), on
+`127.0.0.1:<VEXA_RUNTIME_PORT>`. It is the `process` backend of
+`core/runtime` for one Mac user, with the same contract: the runtime.v1
+workload routes, the schedule.v1 routes, the signed RuntimeEvent callbacks
+(`X-Runtime-Signature`), the Redis keys of the schedule, the bearer caller
+token, and the config.v1 boot checks and `/health` capability rows from
+`core/runtime/src/runtime_kernel/config.v1.json`. Its log is
+`logs/runtime.log`; each workload's output is `logs/workloads/<id>.log`.
+
+Differences from the Python process backend, all for one desktop user:
+
+- A watcher reads each running workload every 2 s, so an exit by itself is
+  reported (callback and status) at once, not on the next status read.
+- Callbacks that the receiver did not acknowledge are sent again every 15 s.
+- When the daemon stops, it stops every workload first (SIGTERM to the
+  leader, the process group killed after 15 s), while meeting-api and
+  agent-api still take the callbacks. No bot outlives the daemon.
+- The workload records are in memory, as in the Python runtime's default.
+
+Checked on 2026-11-14 against the live stack: `/health` rows, 401 without the
+token, 400 for an unknown profile and a mount outside the store, 422 for an
+invalid spec; a meeting-bot workload's `starting`, `running` and `stopped`
+callbacks were accepted by meeting-api's signature check; a due job fired
+(history `completed`, 200), an idempotency key returned the first job, a cron
+job got its next Monday 09:00 UTC, and a cancel answered 200 and then 404.
+`cargo test` checks the callback signature against the contract golden
+(`core/runtime/contracts/runtime.v1/golden/signed-event-stopped.json`).
+
 ### Meeting bots and agent workers
 
-The runtime uses its `process` backend: each meeting bot and each agent
-worker is a normal host process, not a container.
+Each meeting bot and each agent worker is a normal host process, not a
+container.
 
 - `bin/vexa-bot-launch` runs the bot (`core/meetings/services/bot/dist`) with
   Node and the Playwright Chromium in `runtime/ms-playwright`. Each bot gets a
@@ -150,6 +179,7 @@ Measured on 2026-11-13 and 2026-11-14 (Apple M3, `scripts/desktop-memory.py`):
 | the same, transcription model loaded (`whisper-server`, 488 MiB) | 1101.5 MiB |
 | `infra,services,ui` (adds the terminal, 136 MiB), model loaded | 1225.6 MiB |
 | the same, with the core group (2026-11-14) | 1088.8 MiB |
+| the same, with the runtime in the daemon (2026-11-14) | 1006.8 MiB |
 
 A new instance shows the terminal's claim screen. The one-time admin claim
 code is in `logs/core.log` (`grep -A4 'ADMIN CLAIM CODE'`).

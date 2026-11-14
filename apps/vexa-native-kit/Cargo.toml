@@ -1,0 +1,11 @@
+[package]
+name = "vexa-native-kit"
+version = "0.1.0"
+edition = "2021"
+description = "Shared building blocks of the native Vexa Mac processes: JSON, HTTP, SHA-256"
+license = "MIT"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
