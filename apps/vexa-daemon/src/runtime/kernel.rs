@@ -598,6 +598,21 @@ mod tests {
     }
 
     #[test]
+    fn stops_every_workload_when_the_daemon_stops() {
+        let dir = temp("all");
+        let k = kernel(&dir, Arc::new(Mutex::new(Vec::new())));
+        k.create(spec("w-6", "sleeper")).unwrap();
+        k.create(spec("w-7", "stubborn")).unwrap();
+        std::thread::sleep(Duration::from_millis(100));
+        let started = Instant::now();
+        k.stop_all(Duration::from_millis(300));
+        assert!(started.elapsed() < Duration::from_secs(3), "the stops run at once, each within its grace");
+        for id in ["w-6", "w-7"] {
+            assert_eq!(k.get(id).unwrap().state, State::Stopped);
+        }
+    }
+
+    #[test]
     fn kills_a_workload_that_ignores_sigterm() {
         let dir = temp("kill");
         let k = kernel(&dir, Arc::new(Mutex::new(Vec::new())));
