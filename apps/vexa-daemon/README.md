@@ -148,8 +148,12 @@ through meeting-api, and left no process or folder.
 
 Each Python service runs from `runtime/apps/<name>`, a symlink tree with the
 same layout as its image (`/app`), built from the `COPY` lines of its
-Dockerfile. Its environment is `runtime/venvs/<name>`, made by `uv sync`
-with the Dockerfile's arguments. A source change needs only a restart.
+Dockerfile. The core members, and their key and schema jobs, use the core
+group's environment (`runtime/venvs/group-core`); agent-api and the agent
+worker use their own (`runtime/venvs/<name>`, made by `uv sync` with the
+Dockerfile's arguments). With `VEXA_NATIVE_SPLIT=1` every service gets its
+own environment. A source change needs only a restart. A restart of the whole
+stack takes about 12 s (2026-11-14, Apple M3, environments already built).
 `python/native_launch.py` runs crm-api and model-proxy on loopback and a
 given port when each service runs alone (`VEXA_NATIVE_SPLIT=1`); their image
 entry points use fixed ports on all interfaces.

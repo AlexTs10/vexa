@@ -89,6 +89,9 @@ pub const FLOWS: PyApp = PyApp {
     workdir: "app/src",
 };
 
+/// The services of the core process group.
+const CORE_APPS: [&PyApp; 7] = [&BROKER, &ADMIN, &MEETING, &GATEWAY, &MCP, &CRM, &FLOWS];
+
 /// The meeting-bot profile's deployment-wide floor (`profiles.default_registry`).
 const BOT_TUNING_ENV: [&str; 14] = [
     "BOT_ALONE_SILENCE_WINDOW_MS",
@@ -226,10 +229,11 @@ impl Stack {
     fn py(&self, name: &str, app: &PyApp, args: &[String], ready: Ready) -> Spec {
         let runtime = self.layout.runtime();
         let root = app.root(&runtime);
-        Spec::new(name, app.venv(&runtime).join("bin/python"), ready)
+        let venv = self.venv_of(app);
+        Spec::new(name, venv.join("bin/python"), ready)
             .args(args.iter().cloned())
             .cwd(root.join(app.workdir))
-            .env("PATH", format!("{}:{}", app.venv(&runtime).join("bin").display(), self.tools.path))
+            .env("PATH", format!("{}:{}", venv.join("bin").display(), self.tools.path))
             .env("TZ", "UTC")
             .env("AWS_CONFIG_FILE", "/dev/null")
             .env("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
@@ -261,10 +265,37 @@ impl Stack {
     }
 
     /// Prepare every Python service: image layout and locked environment.
+    /// One process per service (`VEXA_NATIVE_SPLIT=1`) instead of the process groups.
+    fn split(&self) -> bool {
+        std::env::var("VEXA_NATIVE_SPLIT").as_deref() == Ok("1")
+    }
+
+    /// The environment a member's process runs in: the core group's for a
+    /// core member (also for its key and schema jobs), else its own.
+    fn venv_of(&self, app: &PyApp) -> PathBuf {
+        let runtime = self.layout.runtime();
+        if !self.split() && CORE_APPS.iter().any(|m| m.name == app.name) {
+            CORE_ENV.venv(&runtime)
+        } else {
+            app.venv(&runtime)
+        }
+    }
+
+    /// The image layout of every service, and the environments the processes
+    /// use: per service when split; else the core group's, agent-api's and
+    /// the agent worker's.
     pub fn prepare_python(&self) -> Result<(), String> {
         let runtime = self.layout.runtime();
+        let (uv, path) = (&self.tools.uv, &self.tools.path);
         for app in ALL {
-            app.prepare(&self.source, &runtime, &self.tools.uv, &self.tools.path)?;
+            if self.split() || !CORE_APPS.iter().any(|m| m.name == app.name) {
+                app.prepare(&self.source, &runtime, uv, path)?;
+            } else {
+                app.assemble_tree(&self.source, &runtime)?;
+            }
+        }
+        if !self.split() {
+            CORE_ENV.prepare_env(&self.source, &runtime, uv, path)?;
         }
         self.ensure_worker_clis()
     }
@@ -925,8 +956,7 @@ impl Stack {
     pub fn core_group(&self) -> Result<Spec, String> {
         let runtime = self.layout.runtime();
         let members = self.core_members();
-        let apps = [&BROKER, &ADMIN, &MEETING, &GATEWAY, &MCP, &CRM, &FLOWS];
-        let pythonpath = apps
+        let pythonpath = CORE_APPS
             .iter()
             .map(|app| app.root(&runtime).join(app.pythonpath).display().to_string())
             .collect::<Vec<_>>()
@@ -1066,11 +1096,10 @@ impl Stack {
     /// default related services share a process (`native_group.py`);
     /// `VEXA_NATIVE_SPLIT=1` runs one process per service for diagnosis.
     pub fn start_services(&self, supervisor: &mut Supervisor) -> Result<crate::runtime::Handle, String> {
-        if std::env::var("VEXA_NATIVE_SPLIT").as_deref() == Ok("1") {
+        if self.split() {
             return self.start_services_split(supervisor);
         }
         self.prepare_python()?;
-        CORE_ENV.prepare_env(&self.source, &self.layout.runtime(), &self.tools.uv, &self.tools.path)?;
         for job in self.key_jobs() {
             supervisor.start(job)?;
         }

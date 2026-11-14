@@ -183,8 +183,13 @@ impl PyApp {
         ensure_venv(uv, &source.join(self.project), &self.venv(runtime), self.sync, path_env)
     }
 
+    /// The image layout only (a group member runs in the group's environment).
+    pub fn assemble_tree(&self, source: &Path, runtime: &Path) -> Result<(), String> {
+        assemble(&source.join(self.context), &source.join(self.dockerfile), &self.root(runtime))
+    }
+
     pub fn prepare(&self, source: &Path, runtime: &Path, uv: &Path, path_env: &str) -> Result<(), String> {
-        assemble(&source.join(self.context), &source.join(self.dockerfile), &self.root(runtime))?;
+        self.assemble_tree(source, runtime)?;
         ensure_venv(uv, &source.join(self.project), &self.venv(runtime), self.sync, path_env)
     }
 }
