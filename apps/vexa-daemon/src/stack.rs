@@ -124,7 +124,7 @@ pub struct Stack {
 }
 
 impl Stack {
-    fn base(&self, spec: Spec) -> Spec {
+    pub(crate) fn base(&self, spec: Spec) -> Spec {
         spec.env("PATH", self.tools.path.clone())
             .env("TZ", "UTC")
             // A container has no AWS profile. The user's ~/.aws files (for

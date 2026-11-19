@@ -783,13 +783,40 @@ impl Stack {
         .timeout(Duration::from_secs(180))
     }
 
-    pub fn credential_broker(&self) -> Spec {
+    /// The Python credential broker in place of the native one
+    /// (`VEXA_NATIVE_PY_CREDENTIAL_BROKER=1`): a member of the core group again.
+    fn py_broker(&self) -> bool {
+        std::env::var("VEXA_NATIVE_PY_CREDENTIAL_BROKER").as_deref() == Ok("1")
+    }
+
+    /// The native credential broker (`apps/vexa-credential-broker`).
+    fn broker_binary(&self) -> Result<PathBuf, String> {
+        if let Ok(path) = std::env::var("VEXA_CREDENTIAL_BROKER_BIN") {
+            return Ok(PathBuf::from(path));
+        }
+        let beside = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|dir| dir.join("vexa-credential-broker")));
+        [
+            beside,
+            Some(self.source.join("apps/vexa-credential-broker/target/release/vexa-credential-broker")),
+            Some(self.source.join("apps/vexa-credential-broker/target/debug/vexa-credential-broker")),
+        ]
+        .into_iter()
+        .flatten()
+        .find(|path| path.is_file())
+        .ok_or_else(|| "cannot find vexa-credential-broker; build apps/vexa-credential-broker, set VEXA_CREDENTIAL_BROKER_BIN, or set VEXA_NATIVE_PY_CREDENTIAL_BROKER=1".to_owned())
+    }
+
+    /// credential-broker (credential-broker.v1): the native process, or the
+    /// Python service when `VEXA_NATIVE_PY_CREDENTIAL_BROKER=1`. Both read the
+    /// same environment and the same state directory.
+    pub fn credential_broker(&self) -> Result<Spec, String> {
         let port = self.env.port("VEXA_CREDENTIAL_BROKER_PORT");
         let keys = self.keys();
         let state = self.layout.data().join("connections-state");
         let _ = std::fs::create_dir_all(&state);
-        let mut spec = self
-            .py(
+        let ready = Ready::Http(port, "/ready".into());
+        let mut spec = if self.py_broker() {
+            self.py(
                 "credential-broker",
                 &BROKER,
                 &[
@@ -802,14 +829,19 @@ impl Stack {
                     port.to_string(),
                     "--no-access-log".into(),
                 ],
-                Ready::Http(port, "/ready".into()),
+                ready,
             )
-            .env("VEXA_CONNECTIONS_STATE_DIR", state.display().to_string())
-            .env("VEXA_GATEWAY_IDENTITY_PUBLIC_KEY_FILE", keys.identity_public());
+        } else {
+            self.base(Spec::new("credential-broker", self.broker_binary()?, ready))
+                .args(["--port".to_owned(), port.to_string()])
+                .timeout(Duration::from_secs(60))
+        }
+        .env("VEXA_CONNECTIONS_STATE_DIR", state.display().to_string())
+        .env("VEXA_GATEWAY_IDENTITY_PUBLIC_KEY_FILE", keys.identity_public());
         for role in ["agent", "human", "git", "bots", "sensors", "signals", "store"] {
             spec = spec.env(&format!("VEXA_CONNECTIONS_{}_KEY_FILE", role.to_uppercase()), keys.connection(role));
         }
-        self.pass(
+        Ok(self.pass(
             spec,
             &[
                 ("VEXA_CONNECTIONS_STORE", "local"),
@@ -820,7 +852,7 @@ impl Stack {
                 ("VEXA_CONNECTIONS_GOOGLE_CLIENT_SECRET", ""),
                 ("VEXA_CONNECTIONS_PRODUCT_REDIRECT", ""),
             ],
-        )
+        ))
     }
 
     /// crm-api with its outbox loop in the same process (the desktop CRM overlay).
@@ -936,26 +968,24 @@ impl Stack {
     }
 
     /// The core process group: admin-api, meeting-api, gateway and its door,
-    /// mcp, credential-broker, crm, and flows with its worker, in one
-    /// interpreter (native_group.py). agent-api is not a member: it needs other
-    /// values than meeting-api for VEXA_FLOWS_API_URL and
-    /// VEXA_SUBJECT_TICKET_KEY_FILE, and one process has one environment.
+    /// mcp, crm, and flows with its worker, in one interpreter
+    /// (native_group.py); credential-broker too when it is the Python one.
+    /// agent-api is not a member: it needs other values than meeting-api for
+    /// VEXA_FLOWS_API_URL and VEXA_SUBJECT_TICKET_KEY_FILE, and one process has
+    /// one environment.
     /// The member specs of the core group, as each service runs alone.
-    pub fn core_members(&self) -> Vec<Spec> {
-        vec![
-            self.credential_broker(),
-            self.admin_api(),
-            self.meeting_api(),
-            self.gateway(),
-            self.mcp(),
-            self.crm(),
-            self.flows(),
-        ]
+    pub fn core_members(&self) -> Result<Vec<Spec>, String> {
+        let mut members = Vec::new();
+        if self.py_broker() {
+            members.push(self.credential_broker()?);
+        }
+        members.extend([self.admin_api(), self.meeting_api(), self.gateway(), self.mcp(), self.crm(), self.flows()]);
+        Ok(members)
     }
 
     pub fn core_group(&self) -> Result<Spec, String> {
         let runtime = self.layout.runtime();
-        let members = self.core_members();
+        let members = self.core_members()?;
         let pythonpath = CORE_APPS
             .iter()
             .map(|app| app.root(&runtime).join(app.pythonpath).display().to_string())
@@ -967,6 +997,7 @@ impl Stack {
             .env("PATH", format!("{}:{}", CORE_ENV.venv(&runtime).join("bin").display(), self.tools.path))
             .env("PYTHONPATH", pythonpath)
             .env("VEXA_FLOWS_API_PORT", self.env.get("VEXA_FLOWS_PORT"))
+            .env("VEXA_NATIVE_PY_CREDENTIAL_BROKER", if self.py_broker() { "1" } else { "0" })
             .env(
                 "VEXA_NATIVE_MCP_WAIT_URLS",
                 ["VEXA_AGENT_API_PORT", "VEXA_FLOWS_PORT", "VEXA_CRM_PORT"]
@@ -1107,6 +1138,9 @@ impl Stack {
             supervisor.start(job)?;
         }
         let runtime = self.start_runtime()?;
+        if !self.py_broker() {
+            supervisor.start(self.credential_broker()?)?;
+        }
         supervisor.start(self.core_group()?)?;
         supervisor.start(self.agent_group()?)?;
         supervisor.await_ready(
@@ -1126,7 +1160,7 @@ impl Stack {
             supervisor.start(job)?;
         }
         supervisor.start(self.admin_api())?;
-        supervisor.start(self.credential_broker())?;
+        supervisor.start(self.credential_broker()?)?;
         let runtime = self.start_runtime()?;
         supervisor.start(self.model_proxy())?;
         supervisor.start(self.meeting_api())?;

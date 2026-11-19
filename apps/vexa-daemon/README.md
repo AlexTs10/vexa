@@ -48,16 +48,22 @@ keep a reversible export path.
 |---|---|---|
 | `infra` | PostgreSQL 17, Valkey/Redis 7.2, versitygw, storage-init, vexa-stt | `postgres`, `redis`, `storage`, `storage-init`, the `transcription` stack |
 | `ui` | the Next.js terminal (`node server.mjs`, built with `pnpm --filter @vexa/terminal run build`) on 127.0.0.1:23000 | `terminal` |
-| `services` | key jobs, schema jobs, the runtime (in the daemon), admin-api, credential-broker, model-proxy, meeting-api, agent-api, crm (with outbox), gateway (with service door), flows (API and worker), mcp | the same services, with the desktop Flows and CRM overlays |
+| `services` | key jobs, schema jobs, the runtime (in the daemon), admin-api, credential-broker (`apps/vexa-credential-broker`), model-proxy, meeting-api, agent-api, crm (with outbox), gateway (with service door), flows (API and worker), mcp | the same services, with the desktop Flows and CRM overlays |
 
 By default the Python services share two processes
 (`python/native_group.py`):
 
 - **core**: admin-api, meeting-api, gateway with its service door, mcp,
-  credential-broker, crm (with its outbox) and flows (API, with the worker loop
-  on its own thread). mcp starts last, after agent-api, flows and crm answer
+  crm (with its outbox) and flows (API, with the worker loop on its own
+  thread). mcp starts last, after agent-api, flows and crm answer
   `/health`, because it assembles their tools when it is built.
 - **agent**: agent-api and model-proxy.
+
+credential-broker is the native `vexa-credential-broker` process (found
+through `VEXA_CREDENTIAL_BROKER_BIN`, beside the daemon, or in
+`apps/vexa-credential-broker/target/{release,debug}`).
+`VEXA_NATIVE_PY_CREDENTIAL_BROKER=1` runs the Python broker in the core group
+instead, with the same settings and state directory.
 
 agent-api is not in core: it needs other values than meeting-api for
 `VEXA_FLOWS_API_URL` and `VEXA_SUBJECT_TICKET_KEY_FILE`, and one process has one
@@ -70,8 +76,8 @@ lock uses. `VEXA_NATIVE_SPLIT=1` runs one process per service.
 In a group, every member can read the group's settings. For example gateway
 and mcp code can read the database password that admin-api and meeting-api
 use. This is acceptable for a single-user local app; the Compose layout keeps
-the per-service separation. credential-broker sets umask 077, so every file
-the core process writes is private to the Mac user. `vexa-daemon specs` prints
+the per-service separation. The core group sets umask 077, so every file it
+writes is private to the Mac user; the native broker sets it too. `vexa-daemon specs` prints
 each core member's own settings; `python/group_env_check.py` reads that output
 and lists each setting that one member sets and another member's code names,
 for review.

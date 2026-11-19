@@ -1,0 +1,23 @@
+[package]
+name = "vexa-credential-broker"
+version = "0.1.0"
+edition = "2021"
+description = "The Connections credential broker (credential-broker.v1) as a native process"
+license = "MIT"
+
+[[bin]]
+name = "vexa-credential-broker"
+path = "src/main.rs"
+
+[dependencies]
+vexa-native-kit = { path = "../vexa-native-kit" }
+# MIT OR Apache-2.0: JSON with integer/float distinction and key order (preserve_order).
+serde_json = { version = "1", features = ["preserve_order"] }
+# MIT (rusqlite, libsqlite3-sys); SQLite itself is public domain. The metadata and store databases.
+rusqlite = { version = "0.40", features = ["bundled"] }
+# Apache-2.0 OR MIT: AES-256-GCM for the local encrypted store (ADR-0040).
+aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
+# BSD-3-Clause: Ed25519 verification of the gateway's signed identity (gateway-identity.v1).
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+# MIT OR Apache-2.0: TLS through the platform (Security.framework on macOS).
+native-tls = "0.2"

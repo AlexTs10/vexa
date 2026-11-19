@@ -308,7 +308,7 @@ fn specs() -> Result<(), String> {
         source: stack::source_dir()?,
         layout,
     };
-    for spec in stack.core_members() {
+    for spec in stack.core_members()? {
         let env = spec
             .env
             .iter()

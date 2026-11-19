@@ -5,7 +5,8 @@ services share one interpreter and one event loop, so their common libraries
 load once. This lowers the memory of the native Mac stack.
 
     python native_group.py core    # admin-api, meeting-api, gateway (+ door), mcp,
-                                   # credential-broker, crm, flows (+ worker)
+                                   # crm, flows (+ worker); credential-broker with
+                                   # VEXA_NATIVE_PY_CREDENTIAL_BROKER=1
     python native_group.py agent   # agent-api, model-proxy
 
 Ports come from ``VEXA_<SERVICE>_PORT``. All listeners use 127.0.0.1.
@@ -127,7 +128,12 @@ async def nothing_later() -> list[tuple[str, Listener]]:
 
 
 def broker_now() -> list[tuple[str, Listener]]:
-    # build_app sets umask 077 for the whole process: every file the group writes is private.
+    """The Python credential broker, only with VEXA_NATIVE_PY_CREDENTIAL_BROKER=1; else the daemon
+    runs the native one (apps/vexa-credential-broker) as its own process."""
+    # Every file the group writes is private, whichever broker runs.
+    os.umask(0o077)
+    if os.getenv("VEXA_NATIVE_PY_CREDENTIAL_BROKER") != "1":
+        return []
     from credential_broker.main import build_app
 
     return [("credential-broker", listener(build_app(), port("CREDENTIAL_BROKER")))]
