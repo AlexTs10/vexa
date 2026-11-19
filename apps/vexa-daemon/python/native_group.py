@@ -4,14 +4,17 @@ Each service keeps its own app builder, routes, lifespan and port. The
 services share one interpreter and one event loop, so their common libraries
 load once. This lowers the memory of the native Mac stack.
 
-    python native_group.py core    # admin-api, meeting-api, gateway (+ door), mcp,
+    python native_group.py core    # admin-api, meeting-api, gateway (+ door),
                                    # crm, flows (+ worker); credential-broker with
-                                   # VEXA_NATIVE_PY_CREDENTIAL_BROKER=1
+                                   # VEXA_NATIVE_PY_CREDENTIAL_BROKER=1, mcp with
+                                   # VEXA_NATIVE_PY_MCP=1
     python native_group.py agent   # agent-api, model-proxy
 
 Ports come from ``VEXA_<SERVICE>_PORT``. All listeners use 127.0.0.1.
-mcp asks every domain for its tools when it is built, so the core group
-builds it last, after each URL in ``VEXA_NATIVE_MCP_WAIT_URLS`` answers 200.
+With VEXA_NATIVE_PY_MCP=1, mcp is a member too. It asks every domain for its
+tools when it is built, so the core group builds it last, after each URL in
+``VEXA_NATIVE_MCP_WAIT_URLS`` answers 200. Else the daemon runs the native
+mcp (apps/vexa-mcp) as its own process, after the same URLs answer.
 The flows worker loop runs on its own thread in the core group.
 
 The process stops all listeners on SIGINT or SIGTERM, and exits with code 1
@@ -83,6 +86,8 @@ def _answers(url: str) -> bool:
 
 
 async def mcp_later() -> list[tuple[str, Listener]]:
+    if os.getenv("VEXA_NATIVE_PY_MCP") != "1":
+        return []
     urls = [u for u in os.getenv("VEXA_NATIVE_MCP_WAIT_URLS", "").split(",") if u]
     loop = asyncio.get_running_loop()
     while True:

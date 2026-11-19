@@ -36,26 +36,8 @@ impl Answer {
     }
 }
 
-fn reason(status: u16) -> &'static str {
-    match status {
-        200 => "OK",
-        400 => "Bad Request",
-        401 => "Unauthorized",
-        403 => "Forbidden",
-        404 => "Not Found",
-        405 => "Method Not Allowed",
-        409 => "Conflict",
-        410 => "Gone",
-        422 => "Unprocessable Entity",
-        500 => "Internal Server Error",
-        502 => "Bad Gateway",
-        503 => "Service Unavailable",
-        _ => "",
-    }
-}
-
 fn write(stream: &mut TcpStream, a: &Answer) -> std::io::Result<()> {
-    let mut head = format!("HTTP/1.1 {} {}\r\ncontent-type: {}\r\ncontent-length: {}\r\nconnection: close\r\n", a.status, reason(a.status), a.content_type, a.body.len());
+    let mut head = format!("HTTP/1.1 {} {}\r\ncontent-type: {}\r\ncontent-length: {}\r\nconnection: close\r\n", a.status, vexa_native_kit::reason::phrase(a.status), a.content_type, a.body.len());
     for (k, v) in &a.headers {
         head.push_str(&format!("{k}: {v}\r\n"));
     }

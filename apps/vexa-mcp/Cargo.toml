@@ -1,0 +1,23 @@
+[package]
+name = "vexa-mcp"
+version = "0.1.0"
+edition = "2021"
+description = "The Vexa MCP edge (mcp.tools.v1, streamable HTTP) as a native process"
+license = "MIT"
+
+[[bin]]
+name = "vexa-mcp"
+path = "src/main.rs"
+
+[dependencies]
+# MIT (this repository): Python-compatible JSON text, logevent.v1 lines, reason phrases.
+vexa-native-kit = { path = "../vexa-native-kit", features = ["py"] }
+# MIT OR Apache-2.0: JSON with integer/float distinction and key order (preserve_order).
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+# MIT OR Apache-2.0: the `pattern` keyword of the tools' input schemas (Python `re.search`).
+regex = { version = "1", default-features = false, features = ["std", "unicode"] }
+# MIT OR Apache-2.0: keyed BLAKE2b, the ticket's caller fingerprint (hashlib.blake2b(key=...)).
+blake2 = "0.10"
+# MIT OR Apache-2.0: TLS for an https ticket sink (Security.framework on macOS).
+native-tls = "0.2"
+

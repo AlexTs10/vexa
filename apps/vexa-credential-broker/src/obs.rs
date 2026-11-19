@@ -2,16 +2,9 @@
 //! happened (event, actor, connection, kind, status), never a value.
 
 use std::cell::RefCell;
-use std::io::Write;
-use std::sync::Mutex;
-
-use serde_json::{json, Map, Value};
-
-use crate::util;
+use serde_json::{json, Value};
 
 pub const SERVICE: &str = "credential-broker";
-
-static OUT: Mutex<()> = Mutex::new(());
 
 thread_local! {
     /// (trace id, agent session) of the request this thread serves.
@@ -35,27 +28,17 @@ pub fn clear() {
 
 pub fn event(name: &str, level: &str, user_id: Option<&str>, fields: Option<Value>) {
     let (trace, session) = CONTEXT.with(|c| c.borrow().clone());
-    let mut line = Map::new();
-    line.insert("ts".into(), json!(util::utc_stamp(util::now())));
-    line.insert("level".into(), json!(level));
-    line.insert("service".into(), json!(SERVICE));
-    line.insert("trace_id".into(), json!(trace.unwrap_or_else(util::uuid_hex)));
-    line.insert("audience".into(), json!("system"));
-    line.insert("event".into(), json!(name));
-    if let Some(user) = user_id {
-        line.insert("user_id".into(), json!(user));
+    vexa_native_kit::logevent::Line {
+        service: SERVICE,
+        level,
+        event: name,
+        trace_id: trace.as_deref(),
+        audience: "system",
+        user_id,
+        session: session.as_deref(),
+        fields,
     }
-    if let Some(session) = session {
-        line.insert("session".into(), json!(session));
-    }
-    if let Some(fields) = fields.filter(|f| f.as_object().is_some_and(|o| !o.is_empty())) {
-        line.insert("fields".into(), fields);
-    }
-    let text = util::py_dumps_compact(&Value::Object(line));
-    let _guard = OUT.lock();
-    let mut out = std::io::stdout().lock();
-    let _ = writeln!(out, "{text}");
-    let _ = out.flush();
+    .emit();
 }
 
 pub fn info(name: &str, fields: Value) {

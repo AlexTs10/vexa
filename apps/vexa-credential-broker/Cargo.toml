@@ -10,7 +10,7 @@ name = "vexa-credential-broker"
 path = "src/main.rs"
 
 [dependencies]
-vexa-native-kit = { path = "../vexa-native-kit" }
+vexa-native-kit = { path = "../vexa-native-kit", features = ["py"] }
 # MIT OR Apache-2.0: JSON with integer/float distinction and key order (preserve_order).
 serde_json = { version = "1", features = ["preserve_order"] }
 # MIT (rusqlite, libsqlite3-sys); SQLite itself is public domain. The metadata and store databases.

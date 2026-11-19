@@ -163,22 +163,7 @@ impl Response {
     }
 
     pub fn write(&self, stream: &mut TcpStream) -> std::io::Result<()> {
-        let reason = match self.status {
-            200 => "OK",
-            201 => "Created",
-            400 => "Bad Request",
-            401 => "Unauthorized",
-            404 => "Not Found",
-            405 => "Method Not Allowed",
-            413 => "Payload Too Large",
-            422 => "Unprocessable Entity",
-            429 => "Too Many Requests",
-            500 => "Internal Server Error",
-            502 => "Bad Gateway",
-            503 => "Service Unavailable",
-            504 => "Gateway Timeout",
-            _ => "Unknown",
-        };
+        let reason = crate::reason::phrase(self.status);
         let mut head = format!(
             "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n",
             self.status,

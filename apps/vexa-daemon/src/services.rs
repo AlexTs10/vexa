@@ -749,10 +749,34 @@ impl Stack {
         )
     }
 
-    pub fn mcp(&self) -> Spec {
+    /// The Python mcp in place of the native one (`VEXA_NATIVE_PY_MCP=1`):
+    /// a member of the core group again.
+    fn py_mcp(&self) -> bool {
+        std::env::var("VEXA_NATIVE_PY_MCP").as_deref() == Ok("1")
+    }
+
+    /// A native binary (`vexa_native_kit::binary::find`), or why it is missing.
+    fn native_binary(&self, name: &str, var: &str, fallback: &str) -> Result<PathBuf, String> {
+        vexa_native_kit::binary::find(&self.source, name, var)
+            .ok_or_else(|| format!("cannot find {name}; build apps/{name}, set {var}, or set {fallback}=1"))
+    }
+
+    /// The URLs mcp waits for before it starts: it assembles their tools at boot.
+    fn mcp_wait(&self) -> Vec<(u16, &'static str)> {
+        ["VEXA_AGENT_API_PORT", "VEXA_FLOWS_PORT", "VEXA_CRM_PORT"].iter().map(|key| (self.env.port(key), "/health")).collect()
+    }
+
+    /// mcp (mcp.tools.v1): the native process (`apps/vexa-mcp`), or the Python
+    /// service when `VEXA_NATIVE_PY_MCP=1`. Both read the same environment.
+    pub fn mcp(&self) -> Result<Spec, String> {
         let port = self.env.port("VEXA_MCP_PORT");
-        let spec = self
-            .module("mcp", &MCP, "vexa_mcp", Ready::Http(port, "/health".into()))
+        let ready = Ready::Http(port, "/health".into());
+        let spec = if self.py_mcp() {
+            self.module("mcp", &MCP, "vexa_mcp", ready)
+        } else {
+            self.base(Spec::new("mcp", self.native_binary("vexa-mcp", "VEXA_MCP_BIN", "VEXA_NATIVE_PY_MCP")?, ready))
+        };
+        let spec = spec
             .env("HOST", "127.0.0.1")
             .env("PORT", port.to_string())
             .env("GATEWAY_URL", self.p("VEXA_GATEWAY_PORT"))
@@ -762,7 +786,7 @@ impl Stack {
             .env("FLOWS_API_URL", self.p("VEXA_FLOWS_PORT"))
             .env("VEXA_FLOWS_API_KEY", self.env.get("VEXA_FLOWS_API_KEY"))
             .env("CRM_API_URL", self.crm_url());
-        self.pass(
+        Ok(self.pass(
             spec,
             &[
                 ("VEXA_FEATURES", ""),
@@ -780,7 +804,7 @@ impl Stack {
             ],
         )
         // mcp asks every domain for its tools once at boot; it can wait for them.
-        .timeout(Duration::from_secs(180))
+        .timeout(Duration::from_secs(180)))
     }
 
     /// The Python credential broker in place of the native one
@@ -791,19 +815,7 @@ impl Stack {
 
     /// The native credential broker (`apps/vexa-credential-broker`).
     fn broker_binary(&self) -> Result<PathBuf, String> {
-        if let Ok(path) = std::env::var("VEXA_CREDENTIAL_BROKER_BIN") {
-            return Ok(PathBuf::from(path));
-        }
-        let beside = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|dir| dir.join("vexa-credential-broker")));
-        [
-            beside,
-            Some(self.source.join("apps/vexa-credential-broker/target/release/vexa-credential-broker")),
-            Some(self.source.join("apps/vexa-credential-broker/target/debug/vexa-credential-broker")),
-        ]
-        .into_iter()
-        .flatten()
-        .find(|path| path.is_file())
-        .ok_or_else(|| "cannot find vexa-credential-broker; build apps/vexa-credential-broker, set VEXA_CREDENTIAL_BROKER_BIN, or set VEXA_NATIVE_PY_CREDENTIAL_BROKER=1".to_owned())
+        self.native_binary("vexa-credential-broker", "VEXA_CREDENTIAL_BROKER_BIN", "VEXA_NATIVE_PY_CREDENTIAL_BROKER")
     }
 
     /// credential-broker (credential-broker.v1): the native process, or the
@@ -968,8 +980,8 @@ impl Stack {
     }
 
     /// The core process group: admin-api, meeting-api, gateway and its door,
-    /// mcp, crm, and flows with its worker, in one interpreter
-    /// (native_group.py); credential-broker too when it is the Python one.
+    /// crm, and flows with its worker, in one interpreter (native_group.py);
+    /// credential-broker and mcp too when they are the Python ones.
     /// agent-api is not a member: it needs other values than meeting-api for
     /// VEXA_FLOWS_API_URL and VEXA_SUBJECT_TICKET_KEY_FILE, and one process has
     /// one environment.
@@ -979,7 +991,11 @@ impl Stack {
         if self.py_broker() {
             members.push(self.credential_broker()?);
         }
-        members.extend([self.admin_api(), self.meeting_api(), self.gateway(), self.mcp(), self.crm(), self.flows()]);
+        members.extend([self.admin_api(), self.meeting_api(), self.gateway()]);
+        if self.py_mcp() {
+            members.push(self.mcp()?);
+        }
+        members.extend([self.crm(), self.flows()]);
         Ok(members)
     }
 
@@ -998,13 +1014,10 @@ impl Stack {
             .env("PYTHONPATH", pythonpath)
             .env("VEXA_FLOWS_API_PORT", self.env.get("VEXA_FLOWS_PORT"))
             .env("VEXA_NATIVE_PY_CREDENTIAL_BROKER", if self.py_broker() { "1" } else { "0" })
+            .env("VEXA_NATIVE_PY_MCP", if self.py_mcp() { "1" } else { "0" })
             .env(
                 "VEXA_NATIVE_MCP_WAIT_URLS",
-                ["VEXA_AGENT_API_PORT", "VEXA_FLOWS_PORT", "VEXA_CRM_PORT"]
-                    .iter()
-                    .map(|key| format!("{}/health", self.p(key)))
-                    .collect::<Vec<_>>()
-                    .join(","),
+                self.mcp_wait().iter().map(|(port, path)| format!("{}{path}", url(*port))).collect::<Vec<_>>().join(","),
             )
             .timeout(Duration::from_secs(180));
         for key in [
@@ -1143,6 +1156,13 @@ impl Stack {
         }
         supervisor.start(self.core_group()?)?;
         supervisor.start(self.agent_group()?)?;
+        if !self.py_mcp() {
+            // In VEXA_NATIVE_MCP_WAIT_URLS order: mcp assembles their tools at boot.
+            for (port, path) in self.mcp_wait() {
+                supervisor.await_ready("mcp dependency", &Ready::Http(port, path.into()), Duration::from_secs(180))?;
+            }
+            supervisor.start(self.mcp()?)?;
+        }
         supervisor.await_ready(
             "mcp",
             &Ready::Http(self.env.port("VEXA_MCP_PORT"), "/health".into()),
@@ -1168,7 +1188,7 @@ impl Stack {
         supervisor.start(self.crm())?;
         supervisor.start(self.gateway())?;
         supervisor.start(self.flows())?;
-        supervisor.start(self.mcp())?;
+        supervisor.start(self.mcp()?)?;
         Ok(runtime)
     }
 }

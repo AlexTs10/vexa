@@ -2,10 +2,17 @@
 name = "vexa-native-kit"
 version = "0.1.0"
 edition = "2021"
-description = "Shared building blocks of the native Vexa Mac processes: JSON, HTTP, SHA-256"
+description = "Shared building blocks of the native Vexa Mac processes: JSON, HTTP, SHA-256, Python-compatible text, logevent.v1 lines, binary lookup"
 license = "MIT"
 
 [lib]
 path = "src/lib.rs"
 
+[features]
+# Python-compatible JSON text and logevent.v1 lines over serde_json values (the broker, mcp).
+# Off by default: vexa-daemon and vexa-stt keep no external crates.
+py = ["dep:serde_json"]
+
 [dependencies]
+# MIT OR Apache-2.0: JSON with integer/float distinction and key order (preserve_order).
+serde_json = { version = "1", features = ["preserve_order"], optional = true }

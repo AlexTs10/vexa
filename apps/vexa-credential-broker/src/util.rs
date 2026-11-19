@@ -2,31 +2,9 @@
 //! URL splitting and quoting the way Python's urllib does it.
 
 use serde_json::Value;
-use std::io::Read;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 
-/// Seconds since the epoch, as Python's time.time().
-pub fn now() -> f64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
-}
-
-/// Random bytes from the operating system.
-pub fn random_bytes(n: usize) -> Vec<u8> {
-    let mut out = vec![0u8; n];
-    std::fs::File::open("/dev/urandom")
-        .and_then(|mut f| f.read_exact(&mut out))
-        .expect("the operating system's random source is readable");
-    out
-}
-
-/// uuid4().hex
-pub fn uuid_hex() -> String {
-    let mut b = random_bytes(16);
-    b[6] = (b[6] & 0x0f) | 0x40;
-    b[8] = (b[8] & 0x3f) | 0x80;
-    hex(&b)
-}
+pub use vexa_native_kit::ids::{now, random_bytes, uuid_hex};
 
 /// secrets.token_urlsafe(n)
 pub fn token_urlsafe(n: usize) -> String {
@@ -150,143 +128,7 @@ pub fn b64url_decode_canonical(text: &str) -> Option<Vec<u8>> {
 
 // ── Python-compatible JSON text ────────────────────────────────────────────
 
-/// Python's float repr.
-pub fn py_float(f: f64) -> String {
-    if f.is_nan() {
-        return "NaN".into();
-    }
-    if f.is_infinite() {
-        return if f > 0.0 { "Infinity".into() } else { "-Infinity".into() };
-    }
-    let text = format!("{f:?}");
-    match text.split_once('e') {
-        Some((mantissa, exp)) => {
-            let (sign, digits) = match exp.strip_prefix('-') {
-                Some(d) => ('-', d),
-                None => ('+', exp),
-            };
-            let mantissa = mantissa.strip_suffix(".0").unwrap_or(mantissa);
-            format!("{mantissa}e{sign}{digits:0>2}")
-        }
-        None => text,
-    }
-}
-
-fn py_quote(text: &str, out: &mut String) {
-    out.push('"');
-    for c in text.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{8}' => out.push_str("\\b"),
-            '\u{c}' => out.push_str("\\f"),
-            c if (c as u32) < 0x20 || (c as u32) > 0x7e => {
-                let mut buf = [0u16; 2];
-                for unit in c.encode_utf16(&mut buf) {
-                    out.push_str(&format!("\\u{unit:04x}"));
-                }
-            }
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-}
-
-fn py_number(n: &serde_json::Number) -> String {
-    if let Some(i) = n.as_i64() {
-        i.to_string()
-    } else if let Some(u) = n.as_u64() {
-        u.to_string()
-    } else {
-        py_float(n.as_f64().unwrap_or(0.0))
-    }
-}
-
-fn py_write(value: &Value, sort: bool, out: &mut String) {
-    py_write_sep(value, sort, ", ", ": ", out)
-}
-
-fn py_write_sep(value: &Value, sort: bool, sep_item: &str, sep_key: &str, out: &mut String) {
-    match value {
-        Value::Null => out.push_str("null"),
-        Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
-        Value::Number(n) => out.push_str(&py_number(n)),
-        Value::String(s) => py_quote(s, out),
-        Value::Array(items) => {
-            out.push('[');
-            for (i, entry) in items.iter().enumerate() {
-                if i > 0 {
-                    out.push_str(sep_item);
-                }
-                py_write_sep(entry, sort, sep_item, sep_key, out);
-            }
-            out.push(']');
-        }
-        Value::Object(map) => {
-            out.push('{');
-            let mut keys: Vec<&String> = map.keys().collect();
-            if sort {
-                keys.sort_by(|a, b| a.chars().cmp(b.chars()));
-            }
-            for (i, name) in keys.iter().enumerate() {
-                if i > 0 {
-                    out.push_str(sep_item);
-                }
-                py_quote(name, out);
-                out.push_str(sep_key);
-                py_write_sep(&map[name.as_str()], sort, sep_item, sep_key, out);
-            }
-            out.push('}');
-        }
-    }
-}
-
-/// json.dumps(value) with Python's defaults (", " and ": ", ASCII only).
-pub fn py_dumps(value: &Value) -> String {
-    let mut out = String::new();
-    py_write(value, false, &mut out);
-    out
-}
-
-/// json.dumps(value, separators=(",", ":")): compact, ASCII only.
-pub fn py_dumps_compact(value: &Value) -> String {
-    let mut out = String::new();
-    py_write_sep(value, false, ",", ":", &mut out);
-    out
-}
-
-/// json.dumps(value, sort_keys=True).
-pub fn py_dumps_sorted(value: &Value) -> String {
-    let mut out = String::new();
-    py_write(value, true, &mut out);
-    out
-}
-
-/// str(value) for a JSON value, as Python prints the object json.loads made.
-pub fn py_str(value: &Value) -> String {
-    match value {
-        Value::Null => "None".into(),
-        Value::Bool(b) => if *b { "True" } else { "False" }.into(),
-        Value::Number(n) => py_number(n),
-        Value::String(s) => s.clone(),
-        other => py_dumps(other),
-    }
-}
-
-/// Python truthiness of a JSON value.
-pub fn truthy(value: Option<&Value>) -> bool {
-    match value {
-        None | Some(Value::Null) => false,
-        Some(Value::Bool(b)) => *b,
-        Some(Value::Number(n)) => n.as_f64().is_some_and(|f| f != 0.0),
-        Some(Value::String(s)) => !s.is_empty(),
-        Some(Value::Array(a)) => !a.is_empty(),
-        Some(Value::Object(o)) => !o.is_empty(),
-    }
-}
+pub use vexa_native_kit::pyjson::{py_dumps, py_dumps_compact, py_dumps_sorted, py_float, py_str, truthy};
 
 /// The text at key, or "" (Python's x.get(k) or "" for text).
 pub fn text<'a>(obj: &'a Value, key: &str) -> &'a str {
@@ -433,20 +275,7 @@ pub fn label_key(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
 }
 
-/// The UTC calendar date and time of a Unix second.
-pub fn civil(secs: i64) -> (i64, u32, u32, u32, u32, u32) {
-    let (days, rem) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    (year, month, day, (rem / 3600) as u32, (rem % 3600 / 60) as u32, (rem % 60) as u32)
-}
+pub use vexa_native_kit::ids::civil;
 
 /// Days since the epoch of a civil date.
 pub fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
@@ -459,13 +288,6 @@ pub fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
-/// datetime.now(timezone.utc).isoformat() with the "+00:00" written as "Z".
-pub fn utc_stamp(t: f64) -> String {
-    let secs = t.floor() as i64;
-    let micros = ((t - t.floor()) * 1e6).floor().min(999_999.0) as u32;
-    let (y, mo, d, h, mi, s) = civil(secs);
-    format!("{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{s:02}.{micros:06}Z")
-}
 
 #[cfg(test)]
 mod tests {

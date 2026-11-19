@@ -849,6 +849,9 @@ dependencies = [
 [[package]]
 name = "vexa-native-kit"
 version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
 
 [[package]]
 name = "wasi"
