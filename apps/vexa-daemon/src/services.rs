@@ -708,11 +708,27 @@ impl Stack {
         )
     }
 
-    pub fn gateway(&self) -> Spec {
+    /// The Python gateway in place of the native one (`VEXA_NATIVE_PY_GATEWAY=1`):
+    /// a member of the core group again, with its service door.
+    fn py_gateway(&self) -> bool {
+        std::env::var("VEXA_NATIVE_PY_GATEWAY").as_deref() == Ok("1")
+    }
+
+    /// gateway (api.v1, ws.v1) and its service door: the native process
+    /// (`apps/vexa-gateway`), or the Python service when `VEXA_NATIVE_PY_GATEWAY=1`.
+    /// Both read the same environment.
+    pub fn gateway(&self) -> Result<Spec, String> {
         let port = self.env.port("VEXA_GATEWAY_PORT");
         let keys = self.keys();
-        let spec = self
-            .module("gateway", &GATEWAY, "gateway", Ready::Http(port, "/health".into()))
+        let ready = Ready::Http(port, "/health".into());
+        let spec = if self.py_gateway() {
+            self.module("gateway", &GATEWAY, "gateway", ready)
+        } else {
+            self.base(Spec::new("gateway", self.native_binary("vexa-gateway", "VEXA_GATEWAY_BIN", "VEXA_NATIVE_PY_GATEWAY")?, ready))
+                .env("VEXA_SOURCE_DIR", self.source.display().to_string())
+                .timeout(Duration::from_secs(60))
+        };
+        let spec = spec
             .env("HOST", "127.0.0.1")
             .env("PORT", port.to_string())
             .env("VEXA_GATEWAY_SERVICE_DOOR_PORT", self.env.get("VEXA_GATEWAY_SERVICE_DOOR_PORT"))
@@ -727,7 +743,7 @@ impl Stack {
             .env("VEXA_GATEWAY_IDENTITY_SIGNING_KEY_FILE", keys.identity_signing())
             .env("VEXA_SUBJECT_TICKET_KEYS_DIR", keys.subject_ticket_public_dir())
             .env("CRM_API_URL", self.crm_url());
-        self.pass(
+        Ok(self.pass(
             spec,
             &[
                 ("VEXA_AGENT_ALLOW", ""),
@@ -746,7 +762,7 @@ impl Stack {
                 ("GUARD_BLOCKED_COUNTRIES", ""),
                 ("GUARD_BLOCK_CLOUD_PROVIDERS", ""),
             ],
-        )
+        ))
     }
 
     /// The Python mcp in place of the native one (`VEXA_NATIVE_PY_MCP=1`):
@@ -979,9 +995,9 @@ impl Stack {
         self.source.join("apps/vexa-daemon/python/native_group.py").display().to_string()
     }
 
-    /// The core process group: admin-api, meeting-api, gateway and its door,
-    /// crm, and flows with its worker, in one interpreter (native_group.py);
-    /// credential-broker and mcp too when they are the Python ones.
+    /// The core process group: admin-api, meeting-api, crm, and flows with its
+    /// worker, in one interpreter (native_group.py); credential-broker, the
+    /// gateway with its door, and mcp too when they are the Python ones.
     /// agent-api is not a member: it needs other values than meeting-api for
     /// VEXA_FLOWS_API_URL and VEXA_SUBJECT_TICKET_KEY_FILE, and one process has
     /// one environment.
@@ -991,7 +1007,10 @@ impl Stack {
         if self.py_broker() {
             members.push(self.credential_broker()?);
         }
-        members.extend([self.admin_api(), self.meeting_api(), self.gateway()]);
+        members.extend([self.admin_api(), self.meeting_api()]);
+        if self.py_gateway() {
+            members.push(self.gateway()?);
+        }
         if self.py_mcp() {
             members.push(self.mcp()?);
         }
@@ -1007,7 +1026,9 @@ impl Stack {
             .map(|app| app.root(&runtime).join(app.pythonpath).display().to_string())
             .collect::<Vec<_>>()
             .join(":");
-        let mut base = Spec::new("core", CORE_ENV.venv(&runtime).join("bin/python"), Ready::Http(self.env.port("VEXA_GATEWAY_PORT"), "/health".into()))
+        // Every listener of the group starts at once; admin-api answering is the group answering.
+        let ready = if self.py_gateway() { "VEXA_GATEWAY_PORT" } else { "VEXA_ADMIN_API_PORT" };
+        let mut base = Spec::new("core", CORE_ENV.venv(&runtime).join("bin/python"), Ready::Http(self.env.port(ready), "/health".into()))
             .args([self.group_runner(), "core".to_owned()])
             .cwd(GATEWAY.root(&runtime).join(GATEWAY.workdir))
             .env("PATH", format!("{}:{}", CORE_ENV.venv(&runtime).join("bin").display(), self.tools.path))
@@ -1015,6 +1036,7 @@ impl Stack {
             .env("VEXA_FLOWS_API_PORT", self.env.get("VEXA_FLOWS_PORT"))
             .env("VEXA_NATIVE_PY_CREDENTIAL_BROKER", if self.py_broker() { "1" } else { "0" })
             .env("VEXA_NATIVE_PY_MCP", if self.py_mcp() { "1" } else { "0" })
+            .env("VEXA_NATIVE_PY_GATEWAY", if self.py_gateway() { "1" } else { "0" })
             .env(
                 "VEXA_NATIVE_MCP_WAIT_URLS",
                 self.mcp_wait().iter().map(|(port, path)| format!("{}{path}", url(*port))).collect::<Vec<_>>().join(","),
@@ -1155,6 +1177,9 @@ impl Stack {
             supervisor.start(self.credential_broker()?)?;
         }
         supervisor.start(self.core_group()?)?;
+        if !self.py_gateway() {
+            supervisor.start(self.gateway()?)?;
+        }
         supervisor.start(self.agent_group()?)?;
         if !self.py_mcp() {
             // In VEXA_NATIVE_MCP_WAIT_URLS order: mcp assembles their tools at boot.
@@ -1186,7 +1211,7 @@ impl Stack {
         supervisor.start(self.meeting_api())?;
         supervisor.start(self.agent_api())?;
         supervisor.start(self.crm())?;
-        supervisor.start(self.gateway())?;
+        supervisor.start(self.gateway()?)?;
         supervisor.start(self.flows())?;
         supervisor.start(self.mcp()?)?;
         Ok(runtime)

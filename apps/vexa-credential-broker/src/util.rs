@@ -292,6 +292,7 @@ pub fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use vexa_native_kit::ids::utc_stamp;
 
     #[test]
     fn python_json_text() {

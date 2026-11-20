@@ -48,14 +48,14 @@ keep a reversible export path.
 |---|---|---|
 | `infra` | PostgreSQL 17, Valkey/Redis 7.2, versitygw, storage-init, vexa-stt | `postgres`, `redis`, `storage`, `storage-init`, the `transcription` stack |
 | `ui` | the Next.js terminal (`node server.mjs`, built with `pnpm --filter @vexa/terminal run build`) on 127.0.0.1:23000 | `terminal` |
-| `services` | key jobs, schema jobs, the runtime (in the daemon), admin-api, credential-broker (`apps/vexa-credential-broker`), model-proxy, meeting-api, agent-api, crm (with outbox), gateway (with service door), flows (API and worker), mcp (`apps/vexa-mcp`) | the same services, with the desktop Flows and CRM overlays |
+| `services` | key jobs, schema jobs, the runtime (in the daemon), admin-api, credential-broker (`apps/vexa-credential-broker`), model-proxy, meeting-api, agent-api, crm (with outbox), gateway with its service door (`apps/vexa-gateway`), flows (API and worker), mcp (`apps/vexa-mcp`) | the same services, with the desktop Flows and CRM overlays |
 
 By default the Python services share two processes
 (`python/native_group.py`):
 
-- **core**: admin-api, meeting-api, gateway with its service door,
-  crm (with its outbox) and flows (API, with the worker loop on its own
-  thread).
+- **core**: admin-api, meeting-api, crm (with its outbox) and flows (API,
+  with the worker loop on its own thread). Its readiness is admin-api's
+  `/health`.
 - **agent**: agent-api and model-proxy.
 
 credential-broker is the native `vexa-credential-broker` process (found
@@ -63,6 +63,13 @@ through `VEXA_CREDENTIAL_BROKER_BIN`, beside the daemon, or in
 `apps/vexa-credential-broker/target/{release,debug}`).
 `VEXA_NATIVE_PY_CREDENTIAL_BROKER=1` runs the Python broker in the core group
 instead, with the same settings and state directory.
+
+The gateway and its service door are the native `vexa-gateway` process
+(found through `VEXA_GATEWAY_BIN`, beside the daemon, or in
+`apps/vexa-gateway/target/{release,debug}`). It starts after the core group.
+`VEXA_NATIVE_PY_GATEWAY=1` runs the Python gateway and its door in the core
+group instead, with the same settings; the core group's readiness is then the
+gateway's `/health`.
 
 mcp is the native `vexa-mcp` process (found through `VEXA_MCP_BIN`, beside
 the daemon, or in `apps/vexa-mcp/target/{release,debug}`). It starts last,
@@ -79,8 +86,8 @@ environment is `python/groups/core`, made by `python/merge_groups.py` from the
 members' requirements and limited to the highest version each member's own
 lock uses. `VEXA_NATIVE_SPLIT=1` runs one process per service.
 
-In a group, every member can read the group's settings. For example gateway
-and mcp code can read the database password that admin-api and meeting-api
+In a group, every member can read the group's settings. For example the
+Python gateway and mcp code (when they run in the group) can read the database password that admin-api and meeting-api
 use. This is acceptable for a single-user local app; the Compose layout keeps
 the per-service separation. The core group sets umask 077, so every file it
 writes is private to the Mac user; the native broker sets it too. `vexa-daemon specs` prints

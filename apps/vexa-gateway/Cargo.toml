@@ -1,0 +1,25 @@
+[package]
+name = "vexa-gateway"
+version = "0.1.0"
+edition = "2021"
+description = "The Vexa API gateway (api.v1 edge, ws.v1 multiplex, the service door) as a native process"
+license = "MIT"
+
+[[bin]]
+name = "vexa-gateway"
+path = "src/main.rs"
+
+[dependencies]
+vexa-native-kit = { path = "../vexa-native-kit", features = ["py", "tls"] }
+# MIT OR Apache-2.0: JSON with integer/float distinction and key order (preserve_order); exact float text.
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+# BSD-3-Clause: Ed25519 signing and verification (gateway-identity.v1, subject-ticket.v1).
+ed25519-dalek = "2"
+# MIT OR Apache-2.0: the route manifests' parameter rule and the guard's patterns.
+regex = "1"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+lto = true
+strip = true

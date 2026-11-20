@@ -4,17 +4,20 @@ Each service keeps its own app builder, routes, lifespan and port. The
 services share one interpreter and one event loop, so their common libraries
 load once. This lowers the memory of the native Mac stack.
 
-    python native_group.py core    # admin-api, meeting-api, gateway (+ door),
-                                   # crm, flows (+ worker); credential-broker with
-                                   # VEXA_NATIVE_PY_CREDENTIAL_BROKER=1, mcp with
-                                   # VEXA_NATIVE_PY_MCP=1
+    python native_group.py core    # admin-api, meeting-api, crm, flows (+ worker);
+                                   # credential-broker with
+                                   # VEXA_NATIVE_PY_CREDENTIAL_BROKER=1, gateway
+                                   # (+ door) with VEXA_NATIVE_PY_GATEWAY=1, mcp
+                                   # with VEXA_NATIVE_PY_MCP=1
     python native_group.py agent   # agent-api, model-proxy
 
 Ports come from ``VEXA_<SERVICE>_PORT``. All listeners use 127.0.0.1.
 With VEXA_NATIVE_PY_MCP=1, mcp is a member too. It asks every domain for its
 tools when it is built, so the core group builds it last, after each URL in
 ``VEXA_NATIVE_MCP_WAIT_URLS`` answers 200. Else the daemon runs the native
-mcp (apps/vexa-mcp) as its own process, after the same URLs answer.
+mcp (apps/vexa-mcp) as its own process, after the same URLs answer. The
+gateway and its service door are the native process (apps/vexa-gateway) unless
+VEXA_NATIVE_PY_GATEWAY=1.
 The flows worker loop runs on its own thread in the core group.
 
 The process stops all listeners on SIGINT or SIGTERM, and exits with code 1
@@ -63,15 +66,25 @@ def listener(app, port_number: int) -> Listener:
 
 def gateway_side_now() -> list[tuple[str, Listener]]:
     from admin_api.__main__ import build_production_app as admin_app
-    from gateway.adapters import build_production_app as gateway_app
-    from gateway.adapters import load_signing_key
-    from gateway.service_door import build_door_app, door_port
     from meeting_api.__main__ import build_production_app as meeting_app
 
-    door = build_door_app(identity_key=load_signing_key(os.getenv("VEXA_GATEWAY_IDENTITY_SIGNING_KEY_FILE", "")))
     return [
         ("admin-api", listener(admin_app(), port("ADMIN_API"))),
         ("meeting-api", listener(meeting_app(), port("MEETING_API"))),
+    ] + py_gateway_now()
+
+
+def py_gateway_now() -> list[tuple[str, Listener]]:
+    """The Python gateway and its door, only with VEXA_NATIVE_PY_GATEWAY=1; else the daemon runs
+    the native one (apps/vexa-gateway) as its own process."""
+    if os.getenv("VEXA_NATIVE_PY_GATEWAY") != "1":
+        return []
+    from gateway.adapters import build_production_app as gateway_app
+    from gateway.adapters import load_signing_key
+    from gateway.service_door import build_door_app, door_port
+
+    door = build_door_app(identity_key=load_signing_key(os.getenv("VEXA_GATEWAY_IDENTITY_SIGNING_KEY_FILE", "")))
+    return [
         ("gateway", listener(gateway_app(), port("GATEWAY"))),
         ("gateway-door", listener(door, door_port())),
     ]

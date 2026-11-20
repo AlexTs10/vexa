@@ -2,8 +2,11 @@
 //! `vexa-stt`, `vexa-credential-broker`, `vexa-mcp`). The default build has no
 //! external crates; the `py` feature adds the serde_json-based modules.
 
+pub mod b64;
 pub mod binary;
+pub mod client;
 pub mod http;
+pub mod httpd;
 pub mod ids;
 pub mod json;
 pub mod reason;
