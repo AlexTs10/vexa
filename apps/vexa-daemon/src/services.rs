@@ -883,11 +883,26 @@ impl Stack {
         ))
     }
 
-    /// crm-api with its outbox loop in the same process (the desktop CRM overlay).
-    pub fn crm(&self) -> Spec {
+    /// The Python crm in place of the native one (`VEXA_NATIVE_PY_CRM=1`):
+    /// a member of the core group again.
+    fn py_crm(&self) -> bool {
+        std::env::var("VEXA_NATIVE_PY_CRM").as_deref() == Ok("1")
+    }
+
+    /// crm-api with its outbox loop in the same process (the desktop CRM overlay):
+    /// the native process (`apps/vexa-crm`), or the Python service when
+    /// `VEXA_NATIVE_PY_CRM=1`. Both read the same environment.
+    pub fn crm(&self) -> Result<Spec, String> {
         let port = self.env.port("VEXA_CRM_PORT");
-        let spec = self
-            .py("crm", &CRM, &[self.launcher(), "crm".into()], Ready::Http(port, "/health".into()))
+        let ready = Ready::Http(port, "/health".into());
+        let spec = if self.py_crm() {
+            self.py("crm", &CRM, &[self.launcher(), "crm".into()], ready)
+        } else {
+            self.base(Spec::new("crm", self.native_binary("vexa-crm", "VEXA_CRM_BIN", "VEXA_NATIVE_PY_CRM")?, ready))
+                .env("TZ", "UTC")
+                .timeout(Duration::from_secs(60))
+        };
+        let spec = spec
             .env("VEXA_CRM_PORT", port.to_string())
             .env("CRM_DATABASE_URL", self.pg_url(&self.env.get("CRM_DB_USER"), &self.env.get("CRM_DB_PASSWORD")))
             .env("ADMIN_API_URL", self.p("VEXA_ADMIN_API_PORT"))
@@ -897,7 +912,7 @@ impl Stack {
             .env("FLOWS_API_URL", self.p("VEXA_FLOWS_PORT"))
             .env("FLOWS_PUBLISH_KEY", self.env.get("VEXA_FLOWS_CRM_PUBLISH_KEY"))
             .env("VEXA_FACT_SEAL_KEY_FILE", self.keys().fact_seal());
-        self.pass(spec, &[("CRM_ORG_ID", ""), ("VEXA_FEATURES", "")])
+        Ok(self.pass(spec, &[("CRM_ORG_ID", ""), ("VEXA_FEATURES", "")]))
     }
 
     /// flows-api with its worker in the same process (the desktop Flows overlay).
@@ -995,9 +1010,9 @@ impl Stack {
         self.source.join("apps/vexa-daemon/python/native_group.py").display().to_string()
     }
 
-    /// The core process group: admin-api, meeting-api, crm, and flows with its
+    /// The core process group: admin-api, meeting-api, and flows with its
     /// worker, in one interpreter (native_group.py); credential-broker, the
-    /// gateway with its door, and mcp too when they are the Python ones.
+    /// gateway with its door, mcp and crm too when they are the Python ones.
     /// agent-api is not a member: it needs other values than meeting-api for
     /// VEXA_FLOWS_API_URL and VEXA_SUBJECT_TICKET_KEY_FILE, and one process has
     /// one environment.
@@ -1014,7 +1029,10 @@ impl Stack {
         if self.py_mcp() {
             members.push(self.mcp()?);
         }
-        members.extend([self.crm(), self.flows()]);
+        if self.py_crm() {
+            members.push(self.crm()?);
+        }
+        members.push(self.flows());
         Ok(members)
     }
 
@@ -1037,6 +1055,7 @@ impl Stack {
             .env("VEXA_NATIVE_PY_CREDENTIAL_BROKER", if self.py_broker() { "1" } else { "0" })
             .env("VEXA_NATIVE_PY_MCP", if self.py_mcp() { "1" } else { "0" })
             .env("VEXA_NATIVE_PY_GATEWAY", if self.py_gateway() { "1" } else { "0" })
+            .env("VEXA_NATIVE_PY_CRM", if self.py_crm() { "1" } else { "0" })
             .env(
                 "VEXA_NATIVE_MCP_WAIT_URLS",
                 self.mcp_wait().iter().map(|(port, path)| format!("{}{path}", url(*port))).collect::<Vec<_>>().join(","),
@@ -1177,6 +1196,9 @@ impl Stack {
             supervisor.start(self.credential_broker()?)?;
         }
         supervisor.start(self.core_group()?)?;
+        if !self.py_crm() {
+            supervisor.start(self.crm()?)?;
+        }
         if !self.py_gateway() {
             supervisor.start(self.gateway()?)?;
         }
@@ -1210,7 +1232,7 @@ impl Stack {
         supervisor.start(self.model_proxy())?;
         supervisor.start(self.meeting_api())?;
         supervisor.start(self.agent_api())?;
-        supervisor.start(self.crm())?;
+        supervisor.start(self.crm()?)?;
         supervisor.start(self.gateway()?)?;
         supervisor.start(self.flows())?;
         supervisor.start(self.mcp()?)?;

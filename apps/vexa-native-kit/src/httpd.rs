@@ -465,6 +465,21 @@ where
     }
 }
 
+/// Accept connections for ever, one thread each, each thread with `stack_bytes` of stack (a
+/// handler that runs a database driver needs more than `serve`'s 256 KiB).
+pub fn serve_with_stack<F>(listener: TcpListener, handler: Arc<F>, stack_bytes: usize)
+where
+    F: Fn(&mut Exchange) + Send + Sync + 'static + ?Sized,
+{
+    for conn in listener.incoming() {
+        let Ok(stream) = conn else { continue };
+        let handler = Arc::clone(&handler);
+        let _ = std::thread::Builder::new()
+            .stack_size(stack_bytes)
+            .spawn(move || serve_connection(stream, &*handler));
+    }
+}
+
 /// Accept connections for ever, one thread each.
 pub fn serve<F>(listener: TcpListener, handler: Arc<F>)
 where

@@ -48,12 +48,12 @@ keep a reversible export path.
 |---|---|---|
 | `infra` | PostgreSQL 17, Valkey/Redis 7.2, versitygw, storage-init, vexa-stt | `postgres`, `redis`, `storage`, `storage-init`, the `transcription` stack |
 | `ui` | the Next.js terminal (`node server.mjs`, built with `pnpm --filter @vexa/terminal run build`) on 127.0.0.1:23000 | `terminal` |
-| `services` | key jobs, schema jobs, the runtime (in the daemon), admin-api, credential-broker (`apps/vexa-credential-broker`), model-proxy, meeting-api, agent-api, crm (with outbox), gateway with its service door (`apps/vexa-gateway`), flows (API and worker), mcp (`apps/vexa-mcp`) | the same services, with the desktop Flows and CRM overlays |
+| `services` | key jobs, schema jobs, the runtime (in the daemon), admin-api, credential-broker (`apps/vexa-credential-broker`), model-proxy, meeting-api, agent-api, crm with its outbox (`apps/vexa-crm`), gateway with its service door (`apps/vexa-gateway`), flows (API and worker), mcp (`apps/vexa-mcp`) | the same services, with the desktop Flows and CRM overlays |
 
 By default the Python services share two processes
 (`python/native_group.py`):
 
-- **core**: admin-api, meeting-api, crm (with its outbox) and flows (API,
+- **core**: admin-api, meeting-api and flows (API,
   with the worker loop on its own thread). Its readiness is admin-api's
   `/health`.
 - **agent**: agent-api and model-proxy.
@@ -70,6 +70,12 @@ The gateway and its service door are the native `vexa-gateway` process
 `VEXA_NATIVE_PY_GATEWAY=1` runs the Python gateway and its door in the core
 group instead, with the same settings; the core group's readiness is then the
 gateway's `/health`.
+
+crm-api and its outbox loop are the native `vexa-crm` process (found through
+`VEXA_CRM_BIN`, beside the daemon, or in `apps/vexa-crm/target/{release,debug}`).
+It starts after the core group, on the database the `crm-init` job prepares
+(that job and `fact-seal-keys` stay Python). `VEXA_NATIVE_PY_CRM=1` runs the
+Python crm in the core group instead, with the same settings.
 
 mcp is the native `vexa-mcp` process (found through `VEXA_MCP_BIN`, beside
 the daemon, or in `apps/vexa-mcp/target/{release,debug}`). It starts last,

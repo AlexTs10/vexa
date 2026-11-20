@@ -1,0 +1,2191 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "Vexa CRM",
+  "version": "0.13.3"
+ },
+ "paths": {
+  "/health": {
+   "get": {
+    "summary": "Health",
+    "operationId": "health_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/.well-known/mcp-tools.json": {
+   "get": {
+    "summary": "Manifest",
+    "operationId": "manifest__well_known_mcp_tools_json_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/describe": {
+   "post": {
+    "summary": "Describe",
+    "description": "Discover the CRM's record types (Person, Company, Deal, Project and any imported ones) and the fields you may read. The organisation is fixed by the server; never ask the person to choose one. Use before filtering or writing unfamiliar fields.",
+    "operationId": "crm_describe",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Describe"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/search": {
+   "post": {
+    "summary": "Search",
+    "description": "Find CRM records you may read, with equality filters and pagination. Each result has a stable id, revision and href. Link an entity in a workspace page with its href ([Name](/crm?record=<id>)) instead of copying its fields into the page. In a conversation other people read, only records every participant can read are listed.",
+    "operationId": "crm_search",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Search"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/resolve": {
+   "post": {
+    "summary": "Resolve Name",
+    "operationId": "resolve_name_resolve_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Resolve"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/read": {
+   "post": {
+    "summary": "Read",
+    "description": "Read one record: permitted fields, sources, links, pending proposals, the workspaces bound to it, and 'mentioned_in' — the pages that link it, only from workspaces you are a member of. A merged id answers the surviving record. If this is refused with reason shared_conversation, say you cannot use it here and offer the person's private chat. Read before changing a record.",
+    "operationId": "crm_read",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Read"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/change": {
+   "post": {
+    "summary": "Change",
+    "description": "Create a record, change one, propose a change, or merge a duplicate into the record that survives. As an agent your changes are PROPOSALS: the result says status 'proposed', and a person accepts or rejects them on the record page — tell them it is waiting and give the record link. Updates need the revision crm_read returned; include a reason and source evidence (a meeting id, a page). Create needs an idempotency_key.",
+    "operationId": "crm_change",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Change"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/history": {
+   "post": {
+    "summary": "History",
+    "description": "Read up to 100 recent revisions of a record. Your current access filters historical values too.",
+    "operationId": "crm_history",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Read"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/review": {
+   "post": {
+    "summary": "Review",
+    "description": "Accept or reject a pending proposal — for a person with review rights using their own credential. An agent is refused with reason person_confirmation_required: point the person at the record page instead. Acceptance conflicts if the record changed since the proposal.",
+    "operationId": "crm_review",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Review"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/configure": {
+   "post": {
+    "summary": "Configure",
+    "description": "Read or configure a shared per-type card layout (CRM administrators). Omit layout to read its version; send a layout with expected_version and reason to save. Sections reference real fields; formats are text, markdown, number, currency, percent, date or badge. This changes presentation, never record values or access.",
+    "operationId": "crm_configure",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Configure"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/bind": {
+   "post": {
+    "summary": "Bind",
+    "description": "Bind a workspace to a record, or remove the binding (CRM administrators). Members of a bound workspace may then read the record, and its contributors and owners may change it; the grant ends when their membership does. A page linking a record grants nothing — only a binding does. Confirm with the person in one sentence before binding.",
+    "operationId": "crm_bind",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/Bind"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/desk/read": {
+   "post": {
+    "summary": "Desk Read",
+    "description": "Read the person's own desktop: its version, its layout (sections in order with hidden, collapsed, column, span and size; item order; grouping; filters), the agents and files placed on it, pending suggestions and saved arrangements. Read it before arranging, and pass its version as base_version.",
+    "operationId": "desktop_read",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeskRead"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/desk/arrange": {
+   "post": {
+    "summary": "Desk Arrange",
+    "description": "Change the person's desktop directly — ONLY when the person asked for this in the current turn (\"put agents first\", \"hide files\", \"place my pricing notes\"). Then reply in one line saying what changed and that Undo is on the desktop. If you were not asked in this turn, or you run in a routine, on an event, or in a chat other people share, you are refused with propose_instead: call desktop_arrange_propose instead. Refused with desk_changed: read again and retry once on the new version.",
+    "operationId": "desktop_arrange",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeskArrange"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/desk/arrange/propose": {
+   "post": {
+    "summary": "Desk Propose",
+    "description": "Suggest a desktop arrangement the person did not ask for in this turn. It waits on their desktop with your one-line reason beside Apply and Not now; nothing changes until they apply it. Suggest sparingly: at most 5 wait per person and each session may suggest 20 a day. Tell the person in one line that a suggestion is waiting.",
+    "operationId": "desktop_arrange_propose",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeskPropose"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/desk/proposal": {
+   "post": {
+    "summary": "Desk Proposal",
+    "description": "The person applies or dismisses a desktop suggestion, with their own credential (a confirmation, not a tool).",
+    "operationId": "desk_proposal_desk_proposal_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeskProposalReview"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/desk/undo": {
+   "post": {
+    "summary": "Desk Undo",
+    "description": "Restore an earlier desktop version, layout and placements, as a new version (the desktop's Undo).",
+    "operationId": "desk_undo_desk_undo_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeskUndo"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/desk/workspaces/read": {
+   "post": {
+    "summary": "Workspace Settings Read",
+    "description": "Read the person's own settings for their workspaces: pinned, hidden from home, muted, room_order, level and collapsed sections, keyed by workspace slug. Only workspaces the person changed are listed; any other reads as the defaults (not pinned, not hidden, not muted, no order, no level, nothing collapsed). They are private to the person and say nothing about who else is in a workspace.",
+    "operationId": "workspace_settings_read",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WorkspaceSettingsRead"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/desk/workspaces/set": {
+   "post": {
+    "summary": "Workspace Settings Set",
+    "description": "Change the person's own settings for one workspace — ONLY when the person asked for it in this turn (\"mute Growth\", \"pin Product planning to the top\", \"hide Old archive from my home\"). Send only the keys that change; the answer is the full settings after the change. Then reply in one line saying what changed. Settings grant no access and share nothing. In a routine, on an event, or in a chat other people share you are refused with person_only: tell the person in one line how to do it themselves.",
+    "operationId": "workspace_settings_set",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WorkspaceSettingsSet"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/card/list": {
+   "post": {
+    "summary": "Card List",
+    "description": "List cards: a workspace's board (the cards it references), the person's own (mine), or both by default; filter by about or stage. Each card has its stage, what's next, who it waits on, its sub-cards and members, and its revision. Also lists the proposals waiting for this person's answer. Read before proposing, so you do not propose a card that exists.",
+    "operationId": "card_list",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CardList"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/card/propose": {
+   "post": {
+    "summary": "Card Propose",
+    "description": "Propose a new card — a shared, Trello-like card in the organisation's registry: a title, what it is about, a stage, what's next. It lands as a proposal: on the person's own desktop, or on a workspace's board (one you work in) for its members; a person adds it or says not now. You never make a card yourself. Give a one-line reason. Tell the person in one line that it is waiting.",
+    "operationId": "card_propose",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CardPropose"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/card/update/propose": {
+   "post": {
+    "summary": "Card Update Propose",
+    "description": "Propose a change to a card: its fields (Next, Waiting, Summary, Due, Progress, Checklist, Title), its face, or a stage move (`transition`). A member accepts it; a stage never moves without a person. Pass the card's current revision and a one-line reason, and tell the person in one line that it is waiting.",
+    "operationId": "card_update_propose",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CardUpdatePropose"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/card/read": {
+   "post": {
+    "summary": "Card Read",
+    "description": "One card for the person, with its activity (its movement history). Reading never marks it\nseen; the terminal does, on render in view (/card/seen).",
+    "operationId": "card_read_card_read_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CardRead"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/card/inbox": {
+   "post": {
+    "summary": "Card Inbox",
+    "description": "The person's Inbox: open cards whose next actor they are, and the counts the Now strip,\nthe Inbox and a room badge read (one predicate).",
+    "operationId": "card_inbox_card_inbox_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CardInbox"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/card/seen": {
+   "post": {
+    "summary": "Card Seen",
+    "description": "The terminal rendered the card in view (D14): the only writer of `seen`. Session credential only.",
+    "operationId": "card_seen_card_seen_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CardRef"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/card/nonce": {
+   "post": {
+    "summary": "Card Nonce",
+    "description": "A server nonce bound to this person, this card at its revision and the face they see (D13).",
+    "operationId": "card_nonce_card_nonce_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CardRef"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/card/decide": {
+   "post": {
+    "summary": "Card Decide",
+    "description": "A gate decision on a card (D12) by its next actor, recorded as a decision record (D13):\nsession credential, the nonce, and the content hash of the face they saw. Never an agent.",
+    "operationId": "card_decide_card_decide_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CardDecide"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/card/create": {
+   "post": {
+    "summary": "Card Create",
+    "description": "The person makes a card (\"Make a card\"), with their own credential. An agent is refused with propose_instead.",
+    "operationId": "card_create_card_create_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CardCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/card/update": {
+   "post": {
+    "summary": "Card Update",
+    "description": "A member changes a card or moves its stage, with their own credential.",
+    "operationId": "card_update_card_update_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CardUpdate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/card/members": {
+   "post": {
+    "summary": "Card Members",
+    "description": "A member adds a person to a card (they are invited, and decide) or removes one; anyone may leave.",
+    "operationId": "card_members_card_members_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CardMembers"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/card/membership": {
+   "post": {
+    "summary": "Card Membership",
+    "description": "The person added to a card accepts or declines.",
+    "operationId": "card_membership_card_membership_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CardMembership"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "Bind": {
+    "properties": {
+     "workspace": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace",
+      "description": "Workspace slug whose members get derived grants on the record."
+     },
+     "record_id": {
+      "type": "string",
+      "title": "Record Id"
+     },
+     "bound": {
+      "type": "boolean",
+      "title": "Bound",
+      "description": "false removes the binding.",
+      "default": true
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "workspace",
+     "record_id"
+    ],
+    "title": "Bind"
+   },
+   "CardCreate": {
+    "properties": {
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "workspace": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 128
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Workspace"
+     },
+     "about": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 600
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "About"
+     },
+     "type": {
+      "type": "string",
+      "maxLength": 120,
+      "title": "Type",
+      "default": "Card"
+     },
+     "parent": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 128
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Parent"
+     },
+     "fields": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Fields"
+     },
+     "face": {
+      "anyOf": [
+       {
+        "items": {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        "type": "array",
+        "maxItems": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Face"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 20000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "title"
+    ],
+    "title": "CardCreate"
+   },
+   "CardDecide": {
+    "properties": {
+     "card": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Card"
+     },
+     "action": {
+      "type": "string",
+      "enum": [
+       "acknowledge",
+       "decline",
+       "deliver",
+       "confirm",
+       "decide",
+       "execute",
+       "answer",
+       "use"
+      ],
+      "title": "Action"
+     },
+     "nonce": {
+      "type": "string",
+      "maxLength": 100,
+      "minLength": 16,
+      "title": "Nonce",
+      "description": "From POST /card/nonce, minted for this person and this face."
+     },
+     "content_hash": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Content Hash",
+      "description": "The content hash /card/nonce answered: the face the person saw."
+     },
+     "evidence": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array",
+        "maxItems": 10
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Evidence",
+      "description": "deliver: references the delivery cites."
+     },
+     "receipt": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 300
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Receipt",
+      "description": "execute: the effect receipt reference."
+     },
+     "answer": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 500
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Answer",
+      "description": "answer: the answer."
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 500
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "card",
+     "action",
+     "nonce",
+     "content_hash"
+    ],
+    "title": "CardDecide"
+   },
+   "CardInbox": {
+    "properties": {},
+    "additionalProperties": false,
+    "type": "object",
+    "title": "CardInbox"
+   },
+   "CardList": {
+    "properties": {
+     "workspace": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 128
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Workspace",
+      "description": "A workspace's board: the cards it references."
+     },
+     "about": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 600
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "About",
+      "description": "Only cards about this reference."
+     },
+     "state": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 60
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "State",
+      "description": "Only cards in this stage."
+     },
+     "mine": {
+      "type": "boolean",
+      "title": "Mine",
+      "description": "Only cards the person is a member of.",
+      "default": false
+     },
+     "limit": {
+      "type": "integer",
+      "maximum": 50.0,
+      "minimum": 1.0,
+      "title": "Limit",
+      "default": 50
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "CardList"
+   },
+   "CardMembers": {
+    "properties": {
+     "card": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Card"
+     },
+     "subject": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Subject",
+      "description": "The person id to add (invited) or remove."
+     },
+     "add": {
+      "type": "boolean",
+      "title": "Add",
+      "default": true
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "card",
+     "subject"
+    ],
+    "title": "CardMembers"
+   },
+   "CardMembership": {
+    "properties": {
+     "card": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Card"
+     },
+     "accept": {
+      "type": "boolean",
+      "title": "Accept"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "card",
+     "accept"
+    ],
+    "title": "CardMembership"
+   },
+   "CardPropose": {
+    "properties": {
+     "title": {
+      "type": "string",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title"
+     },
+     "workspace": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 128
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Workspace",
+      "description": "The workspace whose board it goes on — one you work in. Omit for the person's own card."
+     },
+     "about": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 600
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "About",
+      "description": "What the card is about, as a reference: page:<workspace>/<path>, chat:<id>, workspace:<slug>, meeting:<id> or crm:<record id>. Members of the card never get access to it through the card."
+     },
+     "type": {
+      "type": "string",
+      "maxLength": 120,
+      "title": "Type",
+      "description": "A card type; Card unless the company declared others.",
+      "default": "Card"
+     },
+     "parent": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 128
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Parent",
+      "description": "Make it a sub-card of this card id."
+     },
+     "fields": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Fields",
+      "description": "Optional card fields: Next (what happens next, <=200), Waiting (who or what it waits on), Summary (<=500), Due (YYYY-MM-DD), Progress (0..1), Checklist ([{text, done}] <=10), Title. Never State: a stage moves with `transition`. AN OBLIGATION (D11): Kind (commitment | approval | question | ask | invitation | policy_change) with NextActor (the person id whose move it is — required with a Kind), Requester (the person id waiting on it; defaults to the person you act for), Due, Origin (session:<id> or message:<session>/<message id>) and Chain ({blocks: [card ids], blocked_by: [card ids]}). A card with a Kind is OFFERED to its next actor at once and only that person moves it."
+     },
+     "face": {
+      "anyOf": [
+       {
+        "items": {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        "type": "array",
+        "maxItems": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Face",
+      "description": "Optional face: up to 8 blocks. Structural: {type: stepper|people|movement|waiting|next|subcards|ref|status}. Data blocks NAME a field and never carry a value: {type: metric|text|progress|due|checklist|list, field: '<card field>', label?: '<=40 chars'}. To say something on the face, put it in a field (Next, Summary) and show that field. Unknown blocks are dropped."
+     },
+     "reason": {
+      "type": "string",
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Reason",
+      "description": "One line the person reads beside Add / Not now: why this card."
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "title",
+     "reason"
+    ],
+    "title": "CardPropose"
+   },
+   "CardRead": {
+    "properties": {
+     "card": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Card"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "card"
+    ],
+    "title": "CardRead"
+   },
+   "CardRef": {
+    "properties": {
+     "card": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Card"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "card"
+    ],
+    "title": "CardRef"
+   },
+   "CardUpdate": {
+    "properties": {
+     "card": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Card"
+     },
+     "expected_revision": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Expected Revision"
+     },
+     "fields": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Fields"
+     },
+     "face": {
+      "anyOf": [
+       {
+        "items": {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        "type": "array",
+        "maxItems": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Face"
+     },
+     "transition": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 60
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Transition"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "card",
+     "expected_revision"
+    ],
+    "title": "CardUpdate"
+   },
+   "CardUpdatePropose": {
+    "properties": {
+     "card": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Card"
+     },
+     "expected_revision": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Expected Revision",
+      "description": "The revision card_list or the card returned."
+     },
+     "fields": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Fields",
+      "description": "Optional card fields: Next (what happens next, <=200), Waiting (who or what it waits on), Summary (<=500), Due (YYYY-MM-DD), Progress (0..1), Checklist ([{text, done}] <=10), Title. Never State: a stage moves with `transition`. AN OBLIGATION (D11): Kind (commitment | approval | question | ask | invitation | policy_change) with NextActor (the person id whose move it is — required with a Kind), Requester (the person id waiting on it; defaults to the person you act for), Due, Origin (session:<id> or message:<session>/<message id>) and Chain ({blocks: [card ids], blocked_by: [card ids]}). A card with a Kind is OFFERED to its next actor at once and only that person moves it."
+     },
+     "face": {
+      "anyOf": [
+       {
+        "items": {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        "type": "array",
+        "maxItems": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Face",
+      "description": "Optional face: up to 8 blocks. Structural: {type: stepper|people|movement|waiting|next|subcards|ref|status}. Data blocks NAME a field and never carry a value: {type: metric|text|progress|due|checklist|list, field: '<card field>', label?: '<=40 chars'}. To say something on the face, put it in a field (Next, Summary) and show that field. Unknown blocks are dropped."
+     },
+     "transition": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 60
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Transition",
+      "description": "Move the card to this stage of its lifecycle (one of the card's states or side_states). Always a proposal a person accepts."
+     },
+     "reason": {
+      "type": "string",
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Reason",
+      "description": "One line the person reads: why this change."
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "card",
+     "expected_revision",
+     "reason"
+    ],
+    "title": "CardUpdatePropose"
+   },
+   "Change": {
+    "properties": {
+     "action": {
+      "type": "string",
+      "enum": [
+       "create",
+       "update",
+       "propose",
+       "merge"
+      ],
+      "title": "Action"
+     },
+     "idempotency_key": {
+      "type": "string",
+      "maxLength": 200,
+      "title": "Idempotency Key",
+      "description": "Required for create: stable caller-generated key reused when retrying the same request.",
+      "default": ""
+     },
+     "object_type": {
+      "type": "string",
+      "title": "Object Type",
+      "default": ""
+     },
+     "record_id": {
+      "type": "string",
+      "title": "Record Id",
+      "default": ""
+     },
+     "into": {
+      "type": "string",
+      "title": "Into",
+      "description": "For merge: the record that survives. The merged record_id then answers this one everywhere.",
+      "default": ""
+     },
+     "expected_revision": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Expected Revision",
+      "default": 0
+     },
+     "fields": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Fields"
+     },
+     "match": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 20,
+      "title": "Match",
+      "description": "For create: match identifiers — email:a@b.c, domain:b.c, calendar:<event id>. One identifier belongs to one record; a clash means search or merge, never a second record."
+     },
+     "narrative": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Narrative",
+      "description": "Native Markdown description of this CRM record. Supports headings, lists, tables, workspace links and stable [label](/crm?record=UUID) links. Stable CRM links are indexed as relationships with backlinks. Search for mentioned people, companies and products first and link verified matches by their href; never invent identities, facts or URLs. Null preserves the description; empty string clears it. Requires current revision and reason."
+     },
+     "reason": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Reason"
+     },
+     "evidence": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array",
+      "title": "Evidence"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "action",
+     "reason"
+    ],
+    "title": "Change"
+   },
+   "Configure": {
+    "properties": {
+     "object_type": {
+      "type": "string",
+      "title": "Object Type"
+     },
+     "layout": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Layout",
+      "description": "Card layout: {title_field: 'Name', sections: [{title: 'Overview', fields: [{field: 'Amount', label: 'Investment', format: 'currency', currency: 'USD'}]}], show_narrative: true, show_related: true}. Field formats: text, markdown, number, currency, percent (0..100), date, badge."
+     },
+     "expected_version": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Expected Version",
+      "default": 0
+     },
+     "reason": {
+      "type": "string",
+      "maxLength": 2000,
+      "title": "Reason",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "object_type"
+    ],
+    "title": "Configure"
+   },
+   "Describe": {
+    "properties": {
+     "object_type": {
+      "type": "string",
+      "title": "Object Type",
+      "description": "Optional object type; omit to discover permitted object types.",
+      "default": ""
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "Describe"
+   },
+   "DeskArrange": {
+    "properties": {
+     "ops": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Ops",
+      "description": "1..50 declarative operations on the person's own desktop, applied in order; a bad one refuses the whole list. Sections: workspaces, agents, files, cards. Refs: agent:<routine id>, chat:<chat session id> (a chat, drawn in agents), file:<workspace slug>/<path>, workspace:<slug> (ordering only; workspaces are never placed). {op:'order',section,ids:[refs]} · {op:'move',id,before|after} (a ref within its section, or a section id among sections) · {op:'group',section,by:'workspace'|'type'|'state'|'about'} or {op:'group',section,named:[{title,ids}]} · {op:'show'|'hide'|'collapse'|'expand'|'section_top',section} · {op:'section_order',sections:[…]} · {op:'section_place',section,column:1..3,span?:1..3,side_by_side_with?} · {op:'section_size',section,size:'compact'|'normal'|'tall'} · {op:'place'|'remove',ref} (an agent, a chat or a file this person can read; it never creates, edits or shares anything) · {op:'filter',section,where:'<predicate>'|null,until?:'<ISO time>'} · {op:'save',name} · {op:'restore',name}."
+     },
+     "base_version": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Base Version",
+      "description": "The version desktop_read returned. A different current version is refused with desk_changed: read again."
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 80
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name",
+      "description": "Optional: save the resulting arrangement under this name, to restore later."
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "ops",
+     "base_version"
+    ],
+    "title": "DeskArrange"
+   },
+   "DeskProposalReview": {
+    "properties": {
+     "proposal_id": {
+      "type": "string",
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Proposal Id"
+     },
+     "apply": {
+      "type": "boolean",
+      "title": "Apply"
+     },
+     "base_version": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Base Version"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "proposal_id",
+     "apply",
+     "base_version"
+    ],
+    "title": "DeskProposalReview"
+   },
+   "DeskPropose": {
+    "properties": {
+     "ops": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array",
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Ops",
+      "description": "1..50 declarative operations on the person's own desktop, applied in order; a bad one refuses the whole list. Sections: workspaces, agents, files, cards. Refs: agent:<routine id>, chat:<chat session id> (a chat, drawn in agents), file:<workspace slug>/<path>, workspace:<slug> (ordering only; workspaces are never placed). {op:'order',section,ids:[refs]} · {op:'move',id,before|after} (a ref within its section, or a section id among sections) · {op:'group',section,by:'workspace'|'type'|'state'|'about'} or {op:'group',section,named:[{title,ids}]} · {op:'show'|'hide'|'collapse'|'expand'|'section_top',section} · {op:'section_order',sections:[…]} · {op:'section_place',section,column:1..3,span?:1..3,side_by_side_with?} · {op:'section_size',section,size:'compact'|'normal'|'tall'} · {op:'place'|'remove',ref} (an agent, a chat or a file this person can read; it never creates, edits or shares anything) · {op:'filter',section,where:'<predicate>'|null,until?:'<ISO time>'} · {op:'save',name} · {op:'restore',name}."
+     },
+     "reason": {
+      "type": "string",
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Reason",
+      "description": "One line the person reads beside Apply / Not now: why this arrangement helps them."
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "ops",
+     "reason"
+    ],
+    "title": "DeskPropose"
+   },
+   "DeskRead": {
+    "properties": {},
+    "additionalProperties": false,
+    "type": "object",
+    "title": "DeskRead"
+   },
+   "DeskUndo": {
+    "properties": {
+     "version": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Version",
+      "description": "The version to restore (undo_version from the last change); 0 is the default desktop."
+     },
+     "base_version": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Base Version"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "version",
+     "base_version"
+    ],
+    "title": "DeskUndo"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "Read": {
+    "properties": {
+     "record_id": {
+      "type": "string",
+      "title": "Record Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "record_id"
+    ],
+    "title": "Read"
+   },
+   "Resolve": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "Name"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "name"
+    ],
+    "title": "Resolve"
+   },
+   "Review": {
+    "properties": {
+     "proposal_id": {
+      "type": "string",
+      "title": "Proposal Id"
+     },
+     "accept": {
+      "type": "boolean",
+      "title": "Accept"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "proposal_id",
+     "accept"
+    ],
+    "title": "Review"
+   },
+   "Search": {
+    "properties": {
+     "object_type": {
+      "type": "string",
+      "title": "Object Type"
+     },
+     "filters": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Filters",
+      "description": "Equality filters on readable fields; discover field names with crm_describe."
+     },
+     "limit": {
+      "type": "integer",
+      "maximum": 100.0,
+      "minimum": 1.0,
+      "title": "Limit",
+      "default": 20
+     },
+     "offset": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Offset",
+      "default": 0
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "object_type"
+    ],
+    "title": "Search"
+   },
+   "SettingsPatch": {
+    "properties": {
+     "pinned": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pinned",
+      "description": "Pin the workspace to the top of the home."
+     },
+     "hidden": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Hidden",
+      "description": "Hide it from the person's home (it stays open to them)."
+     },
+     "muted": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Muted",
+      "description": "Mute it: no notifications from it."
+     },
+     "notify": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "all",
+         "mentions",
+         "none"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Notify",
+      "description": "RETIRED: refused. The notification level lives in the person's identity notification policy (Settings → Notifications).",
+      "deprecated": true
+     },
+     "room_order": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array",
+        "maxItems": 100
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Room Order",
+      "description": "Chat ids in the person's order (at most 100)."
+     },
+     "level": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 5.0,
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Level",
+      "description": "The person's level override for this workspace, 1..5; null follows their default."
+     },
+     "collapsed": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array",
+        "maxItems": 20
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Collapsed",
+      "description": "Section ids the person collapsed (at most 20)."
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "SettingsPatch"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   },
+   "WorkspaceSettingsRead": {
+    "properties": {},
+    "additionalProperties": false,
+    "type": "object",
+    "title": "WorkspaceSettingsRead"
+   },
+   "WorkspaceSettingsSet": {
+    "properties": {
+     "workspace": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workspace",
+      "description": "The workspace slug; 'personal' is the person's own."
+     },
+     "settings": {
+      "$ref": "#/components/schemas/SettingsPatch",
+      "description": "Only the keys to change; the rest stay as they are."
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "workspace",
+     "settings"
+    ],
+    "title": "WorkspaceSettingsSet"
+   }
+  }
+ }
+}

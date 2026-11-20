@@ -1,7 +1,7 @@
 # vexa-native-kit
 
 Shared building blocks of the native Vexa Mac processes (`vexa-daemon`, `vexa-stt`,
-`vexa-credential-broker`, `vexa-mcp`, `vexa-gateway`). The default build has no external crates.
+`vexa-credential-broker`, `vexa-mcp`, `vexa-gateway`, `vexa-crm`). The default build has no external crates.
 
 - `json`: a JSON value that keeps object key order, a parser, a writer, and the canonical
   (sorted-key) form that Python writes with `json.dumps(..., sort_keys=True, separators=(",", ":"))`.
@@ -16,10 +16,17 @@ Shared building blocks of the native Vexa Mac processes (`vexa-daemon`, `vexa-st
   chunked, and answers read as they arrive; `https://` with the `tls` feature (native-tls).
 - `b64`: base64 and canonical base64url.
 
-The `py` feature adds two modules over `serde_json` values (the broker and mcp use them):
+The `py` feature adds modules over `serde_json` values (the broker, mcp and crm use them):
 
 - `pyjson`: the text `json.dumps` and `repr` write for a JSON value.
+- `pyjson_decode`: `json.loads` with Python's error text.
+- `pyd`: pydantic's validation (lax coercion) and its error items, as FastAPI answers them in a 422.
+- `schema`: jsonschema's Draft 2020-12 validation and its error messages.
 - `logevent`: one logevent.v1 line, in the Python `obs.py` key order.
 
-`cargo test` (and `cargo test --features py,tls`) runs the FIPS 180-4 and RFC 4231 vectors and the
+The `pg` feature (crm) adds `pg`: a pool of blocking PostgreSQL clients (the `postgres` crate,
+MIT OR Apache-2.0), explicit transactions with savepoints, rows as JSON maps, and the SQLAlchemy URL
+forms (`postgresql+pg8000://`).
+
+`cargo test` (and `cargo test --features py,pg,tls`; set `VEXA_TEST_PG_URL` for the PostgreSQL round trip) runs the FIPS 180-4 and RFC 4231 vectors and the
 JSON, HTTP, id and binary checks.

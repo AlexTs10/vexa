@@ -1,0 +1,20 @@
+[package]
+name = "vexa-crm"
+version = "0.1.0"
+edition = "2021"
+description = "The Vexa CRM (crm.v1: records, cards, desk, persons; event.v2 outbox) as a native process"
+license = "MIT"
+
+[[bin]]
+name = "vexa-crm"
+path = "src/main.rs"
+
+[dependencies]
+# MIT (this repository): HTTP server and client, Python-compatible JSON, pydantic/jsonschema error text, PostgreSQL pool.
+vexa-native-kit = { path = "../vexa-native-kit", features = ["py", "pg"] }
+# MIT OR Apache-2.0: JSON with integer/float distinction and key order (preserve_order).
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+# MIT OR Apache-2.0: the patterns of the Python module (re), without look-around or back-references.
+regex = { version = "1", default-features = false, features = ["std", "unicode"] }
+# BSD-3-Clause: Ed25519, the fact seal (cryptography's Ed25519PrivateKey).
+ed25519-dalek = "2"

@@ -9,12 +9,11 @@ mod link;
 mod mcp;
 mod net;
 mod obs;
-mod pyd;
-mod pyjson_decode;
-mod schema;
 mod server;
 mod tickets;
 mod wire;
+
+use vexa_native_kit::{pyd, pyjson_decode, schema};
 
 use std::net::TcpListener;
 use std::sync::RwLock;

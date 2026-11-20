@@ -15,4 +15,12 @@ pub mod sha256;
 #[cfg(feature = "py")]
 pub mod logevent;
 #[cfg(feature = "py")]
+pub mod pyd;
+#[cfg(feature = "py")]
 pub mod pyjson;
+#[cfg(feature = "py")]
+pub mod pyjson_decode;
+#[cfg(feature = "py")]
+pub mod schema;
+#[cfg(feature = "pg")]
+pub mod pg;

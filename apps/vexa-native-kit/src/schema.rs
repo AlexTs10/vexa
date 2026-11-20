@@ -4,7 +4,7 @@
 
 use regex::Regex;
 use serde_json::{Map, Value};
-use vexa_native_kit::pyjson::{py_number, py_repr, py_str_repr};
+use crate::pyjson::{py_number, py_repr, py_str_repr};
 
 #[derive(Debug, Clone)]
 pub struct SchemaError {

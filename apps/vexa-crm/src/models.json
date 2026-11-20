@@ -1,0 +1,1606 @@
+{
+ "Account": {
+  "additionalProperties": false,
+  "properties": {
+   "subject": {
+    "minLength": 1,
+    "title": "Subject",
+    "type": "string"
+   },
+   "email": {
+    "default": "",
+    "title": "Email",
+    "type": "string"
+   },
+   "email_verified": {
+    "default": false,
+    "title": "Email Verified",
+    "type": "boolean"
+   }
+  },
+  "required": [
+   "subject"
+  ],
+  "title": "Account",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Accounts": {
+  "additionalProperties": false,
+  "properties": {
+   "accounts": {
+    "items": {
+     "$ref": "Account"
+    },
+    "maxItems": 500,
+    "minItems": 1,
+    "title": "Accounts",
+    "type": "array"
+   }
+  },
+  "required": [
+   "accounts"
+  ],
+  "title": "Accounts",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Bind": {
+  "additionalProperties": false,
+  "properties": {
+   "workspace": {
+    "description": "Workspace slug whose members get derived grants on the record.",
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Workspace",
+    "type": "string"
+   },
+   "record_id": {
+    "title": "Record Id",
+    "type": "string"
+   },
+   "bound": {
+    "default": true,
+    "description": "false removes the binding.",
+    "title": "Bound",
+    "type": "boolean"
+   }
+  },
+  "required": [
+   "workspace",
+   "record_id"
+  ],
+  "title": "Bind",
+  "type": "object",
+  "x-forbid": true
+ },
+ "BlockRead": {
+  "additionalProperties": false,
+  "properties": {
+   "workspace": {
+    "default": "",
+    "description": "The page's workspace: which fields it may see too.",
+    "maxLength": 128,
+    "title": "Workspace",
+    "type": "string"
+   },
+   "view": {
+    "description": "company · person · people · deals · timeline",
+    "maxLength": 20,
+    "title": "View",
+    "type": "string"
+   },
+   "args": {
+    "additionalProperties": true,
+    "description": "The block's own arguments (company=, stage=, person=, limit=).",
+    "title": "Args",
+    "type": "object",
+    "default": {}
+   }
+  },
+  "required": [
+   "view"
+  ],
+  "title": "BlockRead",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Body": {
+  "additionalProperties": false,
+  "properties": {},
+  "title": "Body",
+  "type": "object",
+  "x-forbid": true
+ },
+ "CardCreate": {
+  "additionalProperties": false,
+  "properties": {
+   "title": {
+    "maxLength": 200,
+    "minLength": 1,
+    "title": "Title",
+    "type": "string"
+   },
+   "workspace": {
+    "anyOf": [
+     {
+      "maxLength": 128,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Workspace"
+   },
+   "about": {
+    "anyOf": [
+     {
+      "maxLength": 600,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "About"
+   },
+   "type": {
+    "default": "Card",
+    "maxLength": 120,
+    "title": "Type",
+    "type": "string"
+   },
+   "parent": {
+    "anyOf": [
+     {
+      "maxLength": 128,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Parent"
+   },
+   "fields": {
+    "additionalProperties": true,
+    "title": "Fields",
+    "type": "object",
+    "default": {}
+   },
+   "face": {
+    "anyOf": [
+     {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "maxItems": 20,
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Face"
+   },
+   "description": {
+    "anyOf": [
+     {
+      "maxLength": 20000,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Description"
+   }
+  },
+  "required": [
+   "title"
+  ],
+  "title": "CardCreate",
+  "type": "object",
+  "x-forbid": true
+ },
+ "CardDecide": {
+  "additionalProperties": false,
+  "properties": {
+   "card": {
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Card",
+    "type": "string"
+   },
+   "action": {
+    "enum": [
+     "acknowledge",
+     "decline",
+     "deliver",
+     "confirm",
+     "decide",
+     "execute",
+     "answer",
+     "use"
+    ],
+    "title": "Action",
+    "type": "string"
+   },
+   "nonce": {
+    "description": "From POST /card/nonce, minted for this person and this face.",
+    "maxLength": 100,
+    "minLength": 16,
+    "title": "Nonce",
+    "type": "string"
+   },
+   "content_hash": {
+    "description": "The content hash /card/nonce answered: the face the person saw.",
+    "maxLength": 64,
+    "minLength": 64,
+    "title": "Content Hash",
+    "type": "string"
+   },
+   "evidence": {
+    "anyOf": [
+     {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 10,
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "deliver: references the delivery cites.",
+    "title": "Evidence"
+   },
+   "receipt": {
+    "anyOf": [
+     {
+      "maxLength": 300,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "execute: the effect receipt reference.",
+    "title": "Receipt"
+   },
+   "answer": {
+    "anyOf": [
+     {
+      "maxLength": 500,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "answer: the answer.",
+    "title": "Answer"
+   },
+   "reason": {
+    "anyOf": [
+     {
+      "maxLength": 500,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Reason"
+   }
+  },
+  "required": [
+   "card",
+   "action",
+   "nonce",
+   "content_hash"
+  ],
+  "title": "CardDecide",
+  "type": "object",
+  "x-forbid": true
+ },
+ "CardInbox": {
+  "additionalProperties": false,
+  "properties": {},
+  "title": "CardInbox",
+  "type": "object",
+  "x-forbid": true
+ },
+ "CardList": {
+  "additionalProperties": false,
+  "properties": {
+   "workspace": {
+    "anyOf": [
+     {
+      "maxLength": 128,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "A workspace's board: the cards it references.",
+    "title": "Workspace"
+   },
+   "about": {
+    "anyOf": [
+     {
+      "maxLength": 600,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Only cards about this reference.",
+    "title": "About"
+   },
+   "state": {
+    "anyOf": [
+     {
+      "maxLength": 60,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Only cards in this stage.",
+    "title": "State"
+   },
+   "mine": {
+    "default": false,
+    "description": "Only cards the person is a member of.",
+    "title": "Mine",
+    "type": "boolean"
+   },
+   "limit": {
+    "default": 50,
+    "maximum": 50,
+    "minimum": 1,
+    "title": "Limit",
+    "type": "integer"
+   }
+  },
+  "title": "CardList",
+  "type": "object",
+  "x-forbid": true
+ },
+ "CardMembers": {
+  "additionalProperties": false,
+  "properties": {
+   "card": {
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Card",
+    "type": "string"
+   },
+   "subject": {
+    "description": "The person id to add (invited) or remove.",
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Subject",
+    "type": "string"
+   },
+   "add": {
+    "default": true,
+    "title": "Add",
+    "type": "boolean"
+   }
+  },
+  "required": [
+   "card",
+   "subject"
+  ],
+  "title": "CardMembers",
+  "type": "object",
+  "x-forbid": true
+ },
+ "CardMembership": {
+  "additionalProperties": false,
+  "properties": {
+   "card": {
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Card",
+    "type": "string"
+   },
+   "accept": {
+    "title": "Accept",
+    "type": "boolean"
+   }
+  },
+  "required": [
+   "card",
+   "accept"
+  ],
+  "title": "CardMembership",
+  "type": "object",
+  "x-forbid": true
+ },
+ "CardPropose": {
+  "additionalProperties": false,
+  "properties": {
+   "title": {
+    "maxLength": 200,
+    "minLength": 1,
+    "title": "Title",
+    "type": "string"
+   },
+   "workspace": {
+    "anyOf": [
+     {
+      "maxLength": 128,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "The workspace whose board it goes on — one you work in. Omit for the person's own card.",
+    "title": "Workspace"
+   },
+   "about": {
+    "anyOf": [
+     {
+      "maxLength": 600,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "What the card is about, as a reference: page:<workspace>/<path>, chat:<id>, workspace:<slug>, meeting:<id> or crm:<record id>. Members of the card never get access to it through the card.",
+    "title": "About"
+   },
+   "type": {
+    "default": "Card",
+    "description": "A card type; Card unless the company declared others.",
+    "maxLength": 120,
+    "title": "Type",
+    "type": "string"
+   },
+   "parent": {
+    "anyOf": [
+     {
+      "maxLength": 128,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Make it a sub-card of this card id.",
+    "title": "Parent"
+   },
+   "fields": {
+    "additionalProperties": true,
+    "description": "Optional card fields: Next (what happens next, <=200), Waiting (who or what it waits on), Summary (<=500), Due (YYYY-MM-DD), Progress (0..1), Checklist ([{text, done}] <=10), Title. Never State: a stage moves with `transition`. AN OBLIGATION (D11): Kind (commitment | approval | question | ask | invitation | policy_change) with NextActor (the person id whose move it is — required with a Kind), Requester (the person id waiting on it; defaults to the person you act for), Due, Origin (session:<id> or message:<session>/<message id>) and Chain ({blocks: [card ids], blocked_by: [card ids]}). A card with a Kind is OFFERED to its next actor at once and only that person moves it.",
+    "title": "Fields",
+    "type": "object",
+    "default": {}
+   },
+   "face": {
+    "anyOf": [
+     {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "maxItems": 20,
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Optional face: up to 8 blocks. Structural: {type: stepper|people|movement|waiting|next|subcards|ref|status}. Data blocks NAME a field and never carry a value: {type: metric|text|progress|due|checklist|list, field: '<card field>', label?: '<=40 chars'}. To say something on the face, put it in a field (Next, Summary) and show that field. Unknown blocks are dropped.",
+    "title": "Face"
+   },
+   "reason": {
+    "description": "One line the person reads beside Add / Not now: why this card.",
+    "maxLength": 500,
+    "minLength": 1,
+    "title": "Reason",
+    "type": "string"
+   }
+  },
+  "required": [
+   "title",
+   "reason"
+  ],
+  "title": "CardPropose",
+  "type": "object",
+  "x-forbid": true
+ },
+ "CardRead": {
+  "additionalProperties": false,
+  "properties": {
+   "card": {
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Card",
+    "type": "string"
+   }
+  },
+  "required": [
+   "card"
+  ],
+  "title": "CardRead",
+  "type": "object",
+  "x-forbid": true
+ },
+ "CardRef": {
+  "additionalProperties": false,
+  "properties": {
+   "card": {
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Card",
+    "type": "string"
+   }
+  },
+  "required": [
+   "card"
+  ],
+  "title": "CardRef",
+  "type": "object",
+  "x-forbid": true
+ },
+ "CardUpdate": {
+  "additionalProperties": false,
+  "properties": {
+   "card": {
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Card",
+    "type": "string"
+   },
+   "expected_revision": {
+    "minimum": 1,
+    "title": "Expected Revision",
+    "type": "integer"
+   },
+   "fields": {
+    "additionalProperties": true,
+    "title": "Fields",
+    "type": "object",
+    "default": {}
+   },
+   "face": {
+    "anyOf": [
+     {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "maxItems": 20,
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Face"
+   },
+   "transition": {
+    "anyOf": [
+     {
+      "maxLength": 60,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Transition"
+   }
+  },
+  "required": [
+   "card",
+   "expected_revision"
+  ],
+  "title": "CardUpdate",
+  "type": "object",
+  "x-forbid": true
+ },
+ "CardUpdatePropose": {
+  "additionalProperties": false,
+  "properties": {
+   "card": {
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Card",
+    "type": "string"
+   },
+   "expected_revision": {
+    "description": "The revision card_list or the card returned.",
+    "minimum": 1,
+    "title": "Expected Revision",
+    "type": "integer"
+   },
+   "fields": {
+    "additionalProperties": true,
+    "description": "Optional card fields: Next (what happens next, <=200), Waiting (who or what it waits on), Summary (<=500), Due (YYYY-MM-DD), Progress (0..1), Checklist ([{text, done}] <=10), Title. Never State: a stage moves with `transition`. AN OBLIGATION (D11): Kind (commitment | approval | question | ask | invitation | policy_change) with NextActor (the person id whose move it is — required with a Kind), Requester (the person id waiting on it; defaults to the person you act for), Due, Origin (session:<id> or message:<session>/<message id>) and Chain ({blocks: [card ids], blocked_by: [card ids]}). A card with a Kind is OFFERED to its next actor at once and only that person moves it.",
+    "title": "Fields",
+    "type": "object",
+    "default": {}
+   },
+   "face": {
+    "anyOf": [
+     {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "maxItems": 20,
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Optional face: up to 8 blocks. Structural: {type: stepper|people|movement|waiting|next|subcards|ref|status}. Data blocks NAME a field and never carry a value: {type: metric|text|progress|due|checklist|list, field: '<card field>', label?: '<=40 chars'}. To say something on the face, put it in a field (Next, Summary) and show that field. Unknown blocks are dropped.",
+    "title": "Face"
+   },
+   "transition": {
+    "anyOf": [
+     {
+      "maxLength": 60,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Move the card to this stage of its lifecycle (one of the card's states or side_states). Always a proposal a person accepts.",
+    "title": "Transition"
+   },
+   "reason": {
+    "description": "One line the person reads: why this change.",
+    "maxLength": 500,
+    "minLength": 1,
+    "title": "Reason",
+    "type": "string"
+   }
+  },
+  "required": [
+   "card",
+   "expected_revision",
+   "reason"
+  ],
+  "title": "CardUpdatePropose",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Change": {
+  "additionalProperties": false,
+  "properties": {
+   "action": {
+    "enum": [
+     "create",
+     "update",
+     "propose",
+     "merge"
+    ],
+    "title": "Action",
+    "type": "string"
+   },
+   "idempotency_key": {
+    "default": "",
+    "description": "Required for create: stable caller-generated key reused when retrying the same request.",
+    "maxLength": 200,
+    "title": "Idempotency Key",
+    "type": "string"
+   },
+   "object_type": {
+    "default": "",
+    "title": "Object Type",
+    "type": "string"
+   },
+   "record_id": {
+    "default": "",
+    "title": "Record Id",
+    "type": "string"
+   },
+   "into": {
+    "default": "",
+    "description": "For merge: the record that survives. The merged record_id then answers this one everywhere.",
+    "title": "Into",
+    "type": "string"
+   },
+   "expected_revision": {
+    "default": 0,
+    "minimum": 0,
+    "title": "Expected Revision",
+    "type": "integer"
+   },
+   "fields": {
+    "additionalProperties": true,
+    "title": "Fields",
+    "type": "object",
+    "default": {}
+   },
+   "match": {
+    "description": "For create: match identifiers — email:a@b.c, domain:b.c, calendar:<event id>. One identifier belongs to one record; a clash means search or merge, never a second record.",
+    "items": {
+     "type": "string"
+    },
+    "maxItems": 20,
+    "title": "Match",
+    "type": "array",
+    "default": []
+   },
+   "narrative": {
+    "anyOf": [
+     {
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Native Markdown description of this CRM record. Supports headings, lists, tables, workspace links and stable [label](/crm?record=UUID) links. Stable CRM links are indexed as relationships with backlinks. Search for mentioned people, companies and products first and link verified matches by their href; never invent identities, facts or URLs. Null preserves the description; empty string clears it. Requires current revision and reason.",
+    "title": "Narrative"
+   },
+   "reason": {
+    "minLength": 1,
+    "title": "Reason",
+    "type": "string"
+   },
+   "evidence": {
+    "items": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "title": "Evidence",
+    "type": "array",
+    "default": []
+   }
+  },
+  "required": [
+   "action",
+   "reason"
+  ],
+  "title": "Change",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Configure": {
+  "additionalProperties": false,
+  "properties": {
+   "object_type": {
+    "title": "Object Type",
+    "type": "string"
+   },
+   "layout": {
+    "additionalProperties": true,
+    "description": "Card layout: {title_field: 'Name', sections: [{title: 'Overview', fields: [{field: 'Amount', label: 'Investment', format: 'currency', currency: 'USD'}]}], show_narrative: true, show_related: true}. Field formats: text, markdown, number, currency, percent (0..100), date, badge.",
+    "title": "Layout",
+    "type": "object",
+    "default": {}
+   },
+   "expected_version": {
+    "default": 0,
+    "minimum": 0,
+    "title": "Expected Version",
+    "type": "integer"
+   },
+   "reason": {
+    "default": "",
+    "maxLength": 2000,
+    "title": "Reason",
+    "type": "string"
+   }
+  },
+  "required": [
+   "object_type"
+  ],
+  "title": "Configure",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Describe": {
+  "additionalProperties": false,
+  "properties": {
+   "object_type": {
+    "default": "",
+    "description": "Optional object type; omit to discover permitted object types.",
+    "title": "Object Type",
+    "type": "string"
+   }
+  },
+  "title": "Describe",
+  "type": "object",
+  "x-forbid": true
+ },
+ "DeskArrange": {
+  "additionalProperties": false,
+  "properties": {
+   "ops": {
+    "description": "1..50 declarative operations on the person's own desktop, applied in order; a bad one refuses the whole list. Sections: workspaces, agents, files, cards. Refs: agent:<routine id>, chat:<chat session id> (a chat, drawn in agents), file:<workspace slug>/<path>, workspace:<slug> (ordering only; workspaces are never placed). {op:'order',section,ids:[refs]} · {op:'move',id,before|after} (a ref within its section, or a section id among sections) · {op:'group',section,by:'workspace'|'type'|'state'|'about'} or {op:'group',section,named:[{title,ids}]} · {op:'show'|'hide'|'collapse'|'expand'|'section_top',section} · {op:'section_order',sections:[…]} · {op:'section_place',section,column:1..3,span?:1..3,side_by_side_with?} · {op:'section_size',section,size:'compact'|'normal'|'tall'} · {op:'place'|'remove',ref} (an agent, a chat or a file this person can read; it never creates, edits or shares anything) · {op:'filter',section,where:'<predicate>'|null,until?:'<ISO time>'} · {op:'save',name} · {op:'restore',name}.",
+    "items": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "maxItems": 50,
+    "minItems": 1,
+    "title": "Ops",
+    "type": "array"
+   },
+   "base_version": {
+    "description": "The version desktop_read returned. A different current version is refused with desk_changed: read again.",
+    "minimum": 0,
+    "title": "Base Version",
+    "type": "integer"
+   },
+   "name": {
+    "anyOf": [
+     {
+      "maxLength": 80,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Optional: save the resulting arrangement under this name, to restore later.",
+    "title": "Name"
+   }
+  },
+  "required": [
+   "ops",
+   "base_version"
+  ],
+  "title": "DeskArrange",
+  "type": "object",
+  "x-forbid": true
+ },
+ "DeskProposalReview": {
+  "additionalProperties": false,
+  "properties": {
+   "proposal_id": {
+    "maxLength": 100,
+    "minLength": 1,
+    "title": "Proposal Id",
+    "type": "string"
+   },
+   "apply": {
+    "title": "Apply",
+    "type": "boolean"
+   },
+   "base_version": {
+    "minimum": 0,
+    "title": "Base Version",
+    "type": "integer"
+   }
+  },
+  "required": [
+   "proposal_id",
+   "apply",
+   "base_version"
+  ],
+  "title": "DeskProposalReview",
+  "type": "object",
+  "x-forbid": true
+ },
+ "DeskPropose": {
+  "additionalProperties": false,
+  "properties": {
+   "ops": {
+    "description": "1..50 declarative operations on the person's own desktop, applied in order; a bad one refuses the whole list. Sections: workspaces, agents, files, cards. Refs: agent:<routine id>, chat:<chat session id> (a chat, drawn in agents), file:<workspace slug>/<path>, workspace:<slug> (ordering only; workspaces are never placed). {op:'order',section,ids:[refs]} · {op:'move',id,before|after} (a ref within its section, or a section id among sections) · {op:'group',section,by:'workspace'|'type'|'state'|'about'} or {op:'group',section,named:[{title,ids}]} · {op:'show'|'hide'|'collapse'|'expand'|'section_top',section} · {op:'section_order',sections:[…]} · {op:'section_place',section,column:1..3,span?:1..3,side_by_side_with?} · {op:'section_size',section,size:'compact'|'normal'|'tall'} · {op:'place'|'remove',ref} (an agent, a chat or a file this person can read; it never creates, edits or shares anything) · {op:'filter',section,where:'<predicate>'|null,until?:'<ISO time>'} · {op:'save',name} · {op:'restore',name}.",
+    "items": {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    "maxItems": 50,
+    "minItems": 1,
+    "title": "Ops",
+    "type": "array"
+   },
+   "reason": {
+    "description": "One line the person reads beside Apply / Not now: why this arrangement helps them.",
+    "maxLength": 500,
+    "minLength": 1,
+    "title": "Reason",
+    "type": "string"
+   }
+  },
+  "required": [
+   "ops",
+   "reason"
+  ],
+  "title": "DeskPropose",
+  "type": "object",
+  "x-forbid": true
+ },
+ "DeskRead": {
+  "additionalProperties": false,
+  "properties": {},
+  "title": "DeskRead",
+  "type": "object",
+  "x-forbid": true
+ },
+ "DeskUndo": {
+  "additionalProperties": false,
+  "properties": {
+   "version": {
+    "description": "The version to restore (undo_version from the last change); 0 is the default desktop.",
+    "minimum": 0,
+    "title": "Version",
+    "type": "integer"
+   },
+   "base_version": {
+    "minimum": 0,
+    "title": "Base Version",
+    "type": "integer"
+   }
+  },
+  "required": [
+   "version",
+   "base_version"
+  ],
+  "title": "DeskUndo",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Handle": {
+  "additionalProperties": false,
+  "properties": {
+   "handle": {
+    "maxLength": 64,
+    "minLength": 1,
+    "title": "Handle",
+    "type": "string"
+   }
+  },
+  "required": [
+   "handle"
+  ],
+  "title": "Handle",
+  "type": "object",
+  "x-forbid": true
+ },
+ "MeetingOffer": {
+  "additionalProperties": false,
+  "properties": {
+   "principal": {
+    "description": "The room's workspace principal id (identity).",
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Principal",
+    "type": "string"
+   },
+   "workspace": {
+    "anyOf": [
+     {
+      "maxLength": 128,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Workspace"
+   },
+   "on_behalf_of": {
+    "description": "The person the run answers (the meeting owner).",
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "On Behalf Of",
+    "type": "string"
+   },
+   "session": {
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Session",
+    "type": "string"
+   },
+   "origin": {
+    "maxLength": 300,
+    "minLength": 1,
+    "title": "Origin",
+    "type": "string"
+   },
+   "reason": {
+    "maxLength": 500,
+    "minLength": 1,
+    "title": "Reason",
+    "type": "string"
+   },
+   "cards": {
+    "items": {
+     "$ref": "OfferSpec"
+    },
+    "maxItems": 20,
+    "minItems": 1,
+    "title": "Cards",
+    "type": "array"
+   }
+  },
+  "required": [
+   "principal",
+   "on_behalf_of",
+   "session",
+   "origin",
+   "reason",
+   "cards"
+  ],
+  "title": "MeetingOffer",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Member": {
+  "properties": {
+   "subject": {
+    "title": "Subject",
+    "type": "string"
+   },
+   "role": {
+    "title": "Role",
+    "type": "string"
+   }
+  },
+  "required": [
+   "subject",
+   "role"
+  ],
+  "title": "Member",
+  "type": "object",
+  "x-forbid": false
+ },
+ "OfferSpec": {
+  "additionalProperties": false,
+  "properties": {
+   "title": {
+    "maxLength": 200,
+    "minLength": 1,
+    "title": "Title",
+    "type": "string"
+   },
+   "kind": {
+    "enum": [
+     "commitment",
+     "question",
+     "approval",
+     "ask",
+     "invitation",
+     "policy_change"
+    ],
+    "title": "Kind",
+    "type": "string"
+   },
+   "next_actor": {
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Next Actor",
+    "type": "string"
+   },
+   "requester": {
+    "default": "",
+    "maxLength": 128,
+    "title": "Requester",
+    "type": "string"
+   },
+   "due": {
+    "anyOf": [
+     {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Due"
+   },
+   "about": {
+    "anyOf": [
+     {
+      "maxLength": 600,
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "About"
+   }
+  },
+  "required": [
+   "title",
+   "kind",
+   "next_actor"
+  ],
+  "title": "OfferSpec",
+  "type": "object",
+  "x-forbid": true
+ },
+ "PersonMe": {
+  "additionalProperties": false,
+  "properties": {},
+  "title": "PersonMe",
+  "type": "object",
+  "x-forbid": true
+ },
+ "PersonMerge": {
+  "additionalProperties": false,
+  "properties": {
+   "action": {
+    "enum": [
+     "confirm",
+     "decline",
+     "primary",
+     "offer"
+    ],
+    "title": "Action",
+    "type": "string"
+   },
+   "card": {
+    "default": "",
+    "description": "The merge card id (confirm, decline).",
+    "maxLength": 100,
+    "title": "Card",
+    "type": "string"
+   },
+   "primary": {
+    "default": "",
+    "description": "An address option from the card: where invites and nudges go.",
+    "maxLength": 32,
+    "title": "Primary",
+    "type": "string"
+   },
+   "address": {
+    "default": "",
+    "description": "offer: another address that is yours.",
+    "maxLength": 300,
+    "title": "Address",
+    "type": "string"
+   }
+  },
+  "required": [
+   "action"
+  ],
+  "title": "PersonMerge",
+  "type": "object",
+  "x-forbid": true
+ },
+ "PersonProfile": {
+  "additionalProperties": false,
+  "properties": {
+   "action": {
+    "enum": [
+     "read",
+     "edit",
+     "claim",
+     "unclaim",
+     "publish",
+     "import"
+    ],
+    "title": "Action",
+    "type": "string"
+   },
+   "fields": {
+    "additionalProperties": true,
+    "description": "edit: profile fields (display_name, photo, headline, company, bio, location, timezone, links, contact). An empty value removes one.",
+    "title": "Fields",
+    "type": "object",
+    "default": {}
+   },
+   "record_id": {
+    "default": "",
+    "description": "claim: the record picked on the claim card; edit: an unclaimed profile (the org edits it).",
+    "maxLength": 100,
+    "title": "Record Id",
+    "type": "string"
+   },
+   "public": {
+    "default": false,
+    "description": "publish: switch the public page on or off.",
+    "title": "Public",
+    "type": "boolean"
+   },
+   "public_fields": {
+    "anyOf": [
+     {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 20,
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "publish: the profile fields the public page shows.",
+    "title": "Public Fields"
+   },
+   "source": {
+    "default": "",
+    "description": "import: a registered importer (none ships).",
+    "maxLength": 40,
+    "title": "Source",
+    "type": "string"
+   }
+  },
+  "required": [
+   "action"
+  ],
+  "title": "PersonProfile",
+  "type": "object",
+  "x-forbid": true
+ },
+ "ProfileLink": {
+  "additionalProperties": false,
+  "properties": {
+   "record_id": {
+    "title": "Record Id",
+    "type": "string"
+   },
+   "handle": {
+    "default": "",
+    "description": "the profile's opaque handle",
+    "maxLength": 64,
+    "title": "Handle",
+    "type": "string"
+   },
+   "linked": {
+    "default": true,
+    "description": "false removes the link",
+    "title": "Linked",
+    "type": "boolean"
+   }
+  },
+  "required": [
+   "record_id"
+  ],
+  "title": "ProfileLink",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Read": {
+  "additionalProperties": false,
+  "properties": {
+   "record_id": {
+    "title": "Record Id",
+    "type": "string"
+   }
+  },
+  "required": [
+   "record_id"
+  ],
+  "title": "Read",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Reference": {
+  "additionalProperties": false,
+  "properties": {
+   "page": {
+    "maxLength": 500,
+    "minLength": 1,
+    "title": "Page",
+    "type": "string"
+   },
+   "record": {
+    "maxLength": 100,
+    "minLength": 1,
+    "title": "Record",
+    "type": "string"
+   }
+  },
+  "required": [
+   "page",
+   "record"
+  ],
+  "title": "Reference",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Resolve": {
+  "additionalProperties": false,
+  "properties": {
+   "name": {
+    "maxLength": 300,
+    "minLength": 1,
+    "title": "Name",
+    "type": "string"
+   }
+  },
+  "required": [
+   "name"
+  ],
+  "title": "Resolve",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Review": {
+  "additionalProperties": false,
+  "properties": {
+   "proposal_id": {
+    "title": "Proposal Id",
+    "type": "string"
+   },
+   "accept": {
+    "title": "Accept",
+    "type": "boolean"
+   }
+  },
+  "required": [
+   "proposal_id",
+   "accept"
+  ],
+  "title": "Review",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Search": {
+  "additionalProperties": false,
+  "properties": {
+   "object_type": {
+    "title": "Object Type",
+    "type": "string"
+   },
+   "filters": {
+    "additionalProperties": true,
+    "description": "Equality filters on readable fields; discover field names with crm_describe.",
+    "title": "Filters",
+    "type": "object",
+    "default": {}
+   },
+   "limit": {
+    "default": 20,
+    "maximum": 100,
+    "minimum": 1,
+    "title": "Limit",
+    "type": "integer"
+   },
+   "offset": {
+    "default": 0,
+    "minimum": 0,
+    "title": "Offset",
+    "type": "integer"
+   }
+  },
+  "required": [
+   "object_type"
+  ],
+  "title": "Search",
+  "type": "object",
+  "x-forbid": true
+ },
+ "SettingsPatch": {
+  "additionalProperties": false,
+  "properties": {
+   "pinned": {
+    "anyOf": [
+     {
+      "type": "boolean"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Pin the workspace to the top of the home.",
+    "title": "Pinned",
+    "x-strict": true
+   },
+   "hidden": {
+    "anyOf": [
+     {
+      "type": "boolean"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Hide it from the person's home (it stays open to them).",
+    "title": "Hidden",
+    "x-strict": true
+   },
+   "muted": {
+    "anyOf": [
+     {
+      "type": "boolean"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Mute it: no notifications from it.",
+    "title": "Muted",
+    "x-strict": true
+   },
+   "notify": {
+    "anyOf": [
+     {
+      "enum": [
+       "all",
+       "mentions",
+       "none"
+      ],
+      "type": "string"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "deprecated": true,
+    "description": "RETIRED: refused. The notification level lives in the person's identity notification policy (Settings → Notifications).",
+    "title": "Notify"
+   },
+   "room_order": {
+    "anyOf": [
+     {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 100,
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Chat ids in the person's order (at most 100).",
+    "title": "Room Order"
+   },
+   "level": {
+    "anyOf": [
+     {
+      "maximum": 5,
+      "minimum": 1,
+      "type": "integer"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "The person's level override for this workspace, 1..5; null follows their default.",
+    "title": "Level",
+    "x-strict": true
+   },
+   "collapsed": {
+    "anyOf": [
+     {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 20,
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "description": "Section ids the person collapsed (at most 20).",
+    "title": "Collapsed"
+   }
+  },
+  "title": "SettingsPatch",
+  "type": "object",
+  "x-forbid": true
+ },
+ "Snapshot": {
+  "additionalProperties": false,
+  "properties": {
+   "workspace": {
+    "title": "Workspace",
+    "type": "string"
+   },
+   "commit": {
+    "minLength": 1,
+    "title": "Commit",
+    "type": "string"
+   },
+   "committed_at": {
+    "title": "Committed At",
+    "type": "string"
+   },
+   "references": {
+    "items": {
+     "$ref": "Reference"
+    },
+    "maxItems": 20000,
+    "title": "References",
+    "type": "array",
+    "default": []
+   },
+   "members": {
+    "anyOf": [
+     {
+      "items": {
+       "$ref": "Member"
+      },
+      "type": "array"
+     },
+     {
+      "type": "null"
+     }
+    ],
+    "default": null,
+    "title": "Members"
+   }
+  },
+  "required": [
+   "workspace",
+   "commit",
+   "committed_at"
+  ],
+  "title": "Snapshot",
+  "type": "object",
+  "x-forbid": true
+ },
+ "WorkspaceSettingsRead": {
+  "additionalProperties": false,
+  "properties": {},
+  "title": "WorkspaceSettingsRead",
+  "type": "object",
+  "x-forbid": true
+ },
+ "WorkspaceSettingsSet": {
+  "additionalProperties": false,
+  "properties": {
+   "workspace": {
+    "description": "The workspace slug; 'personal' is the person's own.",
+    "maxLength": 128,
+    "minLength": 1,
+    "title": "Workspace",
+    "type": "string"
+   },
+   "settings": {
+    "$ref": "SettingsPatch",
+    "description": "Only the keys to change; the rest stay as they are."
+   }
+  },
+  "required": [
+   "workspace",
+   "settings"
+  ],
+  "title": "WorkspaceSettingsSet",
+  "type": "object",
+  "x-forbid": true
+ }
+}

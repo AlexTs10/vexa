@@ -11,7 +11,9 @@ path = "src/lib.rs"
 [features]
 # Python-compatible JSON text and logevent.v1 lines over serde_json values (the broker, mcp).
 # Off by default: vexa-daemon and vexa-stt keep no external crates.
-py = ["dep:serde_json"]
+py = ["dep:serde_json", "dep:regex"]
+# PostgreSQL: a pool of blocking clients, explicit transactions, rows as JSON maps (crm).
+pg = ["py", "dep:postgres"]
 # https:// and wss:// for the streaming client (the gateway).
 tls = ["dep:native-tls"]
 
@@ -20,3 +22,7 @@ tls = ["dep:native-tls"]
 serde_json = { version = "1", features = ["preserve_order"], optional = true }
 # MIT OR Apache-2.0: the platform's TLS (Security.framework on macOS, OpenSSL elsewhere).
 native-tls = { version = "0.2", optional = true }
+# MIT OR Apache-2.0: the `pattern` keyword (pyd, schema) as Python `re.search` reads it.
+regex = { version = "1", default-features = false, features = ["std", "unicode"], optional = true }
+# MIT OR Apache-2.0: the blocking PostgreSQL client (tokio-postgres underneath), JSONB as serde_json.
+postgres = { version = "0.19", features = ["with-serde_json-1"], optional = true }

@@ -3,7 +3,7 @@
 //! (`type`, `loc`, `msg`, `input`, `ctx`) in the same order.
 
 use serde_json::{json, Map, Number, Value};
-use vexa_native_kit::pyjson::py_number;
+use crate::pyjson::py_number;
 
 pub fn error(kind: &str, loc: &[Value], msg: String, input: Value, ctx: Option<Value>) -> Value {
     let mut e = Map::new();
@@ -102,7 +102,7 @@ fn type_of(schema: &Value) -> &str {
 fn literal_expected(options: &[Value]) -> String {
     let reprs: Vec<String> = options
         .iter()
-        .map(vexa_native_kit::pyjson::py_repr)
+        .map(crate::pyjson::py_repr)
         .collect();
     match reprs.len() {
         0 => String::new(),

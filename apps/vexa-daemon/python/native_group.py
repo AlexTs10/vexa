@@ -4,11 +4,12 @@ Each service keeps its own app builder, routes, lifespan and port. The
 services share one interpreter and one event loop, so their common libraries
 load once. This lowers the memory of the native Mac stack.
 
-    python native_group.py core    # admin-api, meeting-api, crm, flows (+ worker);
+    python native_group.py core    # admin-api, meeting-api, flows (+ worker);
                                    # credential-broker with
                                    # VEXA_NATIVE_PY_CREDENTIAL_BROKER=1, gateway
                                    # (+ door) with VEXA_NATIVE_PY_GATEWAY=1, mcp
-                                   # with VEXA_NATIVE_PY_MCP=1
+                                   # with VEXA_NATIVE_PY_MCP=1, crm with
+                                   # VEXA_NATIVE_PY_CRM=1
     python native_group.py agent   # agent-api, model-proxy
 
 Ports come from ``VEXA_<SERVICE>_PORT``. All listeners use 127.0.0.1.
@@ -17,7 +18,8 @@ tools when it is built, so the core group builds it last, after each URL in
 ``VEXA_NATIVE_MCP_WAIT_URLS`` answers 200. Else the daemon runs the native
 mcp (apps/vexa-mcp) as its own process, after the same URLs answer. The
 gateway and its service door are the native process (apps/vexa-gateway) unless
-VEXA_NATIVE_PY_GATEWAY=1.
+VEXA_NATIVE_PY_GATEWAY=1. crm-api and its outbox are the native process
+(apps/vexa-crm) unless VEXA_NATIVE_PY_CRM=1.
 The flows worker loop runs on its own thread in the core group.
 
 The process stops all listeners on SIGINT or SIGTERM, and exits with code 1
@@ -158,6 +160,10 @@ def broker_now() -> list[tuple[str, Listener]]:
 
 
 def crm_now() -> list[tuple[str, Listener]]:
+    """The Python crm-api, only with VEXA_NATIVE_PY_CRM=1; else the daemon runs the native one
+    (apps/vexa-crm) as its own process."""
+    if os.getenv("VEXA_NATIVE_PY_CRM") != "1":
+        return []
     from crm.api import configured_app
     from crm.config_preflight import preflight
 
